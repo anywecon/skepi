@@ -344,3 +344,4 @@ export {
 } from './transfer';
 export { AI_GENERATED_MARKER, PROBLEM_REPORT_MAX_DESCRIPTION, problemReportShare, problemReportText, type ProblemReportInput, type ProblemReportLabels, type ProblemReportShare, type ProblemReportSource } from './report';
 export { ANDROID_RELEASE_SIGNING_SHA256 } from './release';
+export { admitDeepLink, MAX_DEEP_LINK_CHARS } from './deepLink';

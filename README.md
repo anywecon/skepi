@@ -92,6 +92,9 @@ asks for firewall access: allow **private networks** only.
   of 239 countries; elsewhere "112 — check the local number". Map downloads are not supported on iOS
   yet.
 - Windows installers are unsigned; no automatic updates (check the release page).
+- Known issue: antivirus TLS interception on 127.0.0.1 (e.g. Norton Web Shield) breaks Station pinning;
+  add an exception for the app. The antivirus replaces the certificate, so the pin correctly refuses it.
+  Seen in the local Station tests; connections from a phone on the network have not been tested with it.
 
 ## Privacy
 

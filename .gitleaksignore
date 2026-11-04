@@ -1,0 +1,17 @@
+# Reviewed 2026-11-04: none of these is a credential. Fingerprints of the commits that introduced them.
+# public signing cert fingerprint (AllowedAPKSigningKeys, also published in README.md and SECURITY.md)
+643590c8b7ff8d6c94f3cedb968fd80ae9fa6992:docs/fdroid/org.skepi.app.yml:generic-api-key:47
+# public signing cert fingerprint (AllowedAPKSigningKeys, also published in README.md and SECURITY.md)
+de395b701e87e3e4b7ade5ac6e16f2ed1d3c9bbf:docs/store-readiness.md:generic-api-key:177
+# fixed test token (apps/desktop/src/lib/mock.ts)
+c9ac76338656aef20ec4caea0c876ceac79ccd8d:apps/desktop/src/lib/mock.ts:generic-api-key:143
+# fixed test token (modules/expo-transfer/android/src/androidTest/java/org/skepi/transfer/TransferServerTest.kt)
+ad2f0106747307d216be155a0998b11766c1e148:modules/expo-transfer/android/src/androidTest/java/org/skepi/transfer/TransferServerTest.kt:generic-api-key:38
+# fixed test token (packages/core/test/transfer.test.ts)
+068bf5244093ac9dc6d79fc8e9fc7f1c054eab19:packages/core/test/transfer.test.ts:generic-api-key:75
+# fixed test token (packages/core/test/transfer.test.ts)
+068bf5244093ac9dc6d79fc8e9fc7f1c054eab19:packages/core/test/transfer.test.ts:generic-api-key:83
+# fixed test token (packages/core/test/transfer.test.ts)
+068bf5244093ac9dc6d79fc8e9fc7f1c054eab19:packages/core/test/transfer.test.ts:generic-api-key:92
+# localhost test-mirror key: e2e/mirror/certs/README.md; authenticates only the local mirror on IP:127.0.0.1, trusted only by debug builds
+d927dc1fe1752b2c5708253f184445075af8dfdc:e2e/mirror/certs/server.key:private-key:1

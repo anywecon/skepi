@@ -5,7 +5,8 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@expo/cli>node-forge': ^1.4.1
+  '@expo/cli>node-forge': 1.4.1
+  '@expo/code-signing-certificates>node-forge': 1.4.1
   eslint-plugin-react-hooks>zod: ^4.6.6
   node-llama-cpp>simple-git: ^4.0.1
   simple-git>@simple-git/argv-parser: ^2.0.1
@@ -3867,8 +3868,8 @@ packages:
   node-api-headers@1.9.0:
     resolution: {integrity: sha512-2oNILP4jXwRB4ywnYKjVk1YyJ96n2D4EOVJO6S3oYZ5PtbJrw3Yt9TpAuX3nBLMuzn74rnfGQrv13pS9vC+YiA==}
 
-  node-forge@1.4.3:
-    resolution: {integrity: sha512-P6wzfh6t70avmV8FrVEAd/36sOPJQ+hkaJVX1Laap9J/77m7M0eyozDvc8SwnDf4P7MP94gwbAAo0rg3YVXT+g==}
+  node-forge@1.4.1:
+    resolution: {integrity: sha512-w5/MfWaeMrpR/5ba6fZyAUTLSuE6aYz7H/3cYrqwZEmf5eQS3IaaLgJt4MBv7HglGFWmV22K8h4U18RJQmw/ow==}
     engines: {node: '>= 6.13.0'}
 
   node-int64@0.4.0:
@@ -5676,7 +5677,7 @@ snapshots:
       glob: 13.0.6
       lan-network: 0.2.1
       multitars: 1.0.2
-      node-forge: 1.4.3
+      node-forge: 1.4.1
       npm-package-arg: 11.0.3
       ora: 3.4.0
       picomatch: 4.0.7
@@ -5713,7 +5714,7 @@ snapshots:
 
   '@expo/code-signing-certificates@0.0.6':
     dependencies:
-      node-forge: 1.4.3
+      node-forge: 1.4.1
 
   '@expo/config-plugins@57.0.9(typescript@6.0.3)':
     dependencies:
@@ -8962,7 +8963,7 @@ snapshots:
 
   node-api-headers@1.9.0: {}
 
-  node-forge@1.4.3: {}
+  node-forge@1.4.1: {}
 
   node-int64@0.4.0: {}
 

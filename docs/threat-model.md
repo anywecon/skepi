@@ -237,6 +237,19 @@ style was already allowed); no script source changes (`SealingTest.blackoutTheme
 app.db is SQLCipher (op-sqlite); the 256-bit key is random per install and stored with expo-secure-store
 (AES key in the Android Keystore). `allowBackup=false`.
 
+## Dependency risk acceptance
+
+From the osv-scanner report of 2026-11-04 (`osv-scanner scan source --lockfile pnpm-lock.yaml`, `cargo deny check`).
+Everything else in that report at HIGH or CRITICAL was fixed; the fixes are scoped pnpm `overrides` in
+`pnpm-workspace.yaml` and exact versions in the manifests. Re-check all rows by 2027-02-04, or at the Expo 58
+upgrade if that comes first (`expo-router` 58 no longer depends on `query-string`, `@expo/cli` 58 no longer on zod).
+
+| Package | Advisory | Ships in | Why it stays | Mitigation |
+| --- | --- | --- | --- | --- |
+| decode-uri-component 0.2.2 (`expo-router` 57 → `query-string` 7.1.3) | GHSA-qr28-fpjm-wq7f (HIGH), GHSA-vcc3-ghjq-m6fr (MODERATE): slow decoding of malformed percent-encoded input | **Mobile JS bundle** | **Not fixable today.** Fixed only in 0.5.1, which is ESM-only; `query-string` 7 `require`s it as a function, so under Metro (and Node) every `parse` throws `decodeComponent is not a function` (tested with a real Metro bundle) and route params break. Every `expo-router` 57 release needs `query-string` ^7. | **Reachable, denial of service only.** `expo-router` parses the query of an incoming `skepi://` link, and that scheme is BROWSABLE, so a crafted link the user opens can stall the JS thread: measured on the maintainer's PC 32 KB 0.13 s, 128 KB 3 s, 224 KB 28 s (quadratic; slower on a phone). Every screen runs on that thread, including the emergency cards, so the app stays frozen until the decoding ends or the app is force-stopped. No data is read or changed, nothing persists, and a restart recovers. The app's own routes carry well-formed params, which take the native decoder and never reach the slow path. |
+| zod 3.25.76 (`@expo/cli` 57) | GHSA-mrhx-c7xc-m3w5 (HIGH): memory exhaustion validating a very large array | Nothing shipped (build and dev tooling) | No 3.x fix exists (fixed in 4.6.6); `@expo/cli` 57 is written for zod 3, so an override to 4 is not safe. | Used only to validate DevTools plugin metadata from our own `node_modules` when the dev server runs; no untrusted input, and the schemas never see user data. Not in the mobile or the desktop bundle. |
+| proc-macro-error 1.0.4 (tauri → gtk 0.18 → glib-macros) | RUSTSEC-2024-0370: unmaintained | Nothing shipped (proc macro, Linux dependency graph only) | No fixed release; tauri has to move off gtk 0.18. | Runs only at compile time on source from crates.io, and SKEPI ships no Linux desktop build. Ignored by id in `deny.toml`. |
+
 ## Open items
 
 - Catalog hosting and key-list distribution (later phase). Maps and places joined the catalog in Phase 2a;

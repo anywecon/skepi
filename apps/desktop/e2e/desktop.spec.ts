@@ -14,6 +14,14 @@ interface Recorded {
   report: string | null;
 }
 
+/** The part of MapLibre's Map these tests use (`__skepiMap`, e2e mode only). */
+interface MapGl {
+  getLayer: (id: string) => unknown;
+  getSource: (id: string) => unknown;
+  queryRenderedFeatures: (o: { layers: string[] }) => { geometry: { coordinates: number[] } }[];
+  project: (c: [number, number]) => { x: number; y: number };
+}
+
 async function record(page: Page): Promise<Recorded> {
   return page.evaluate(() => {
     const m = (window as unknown as { __skepiMock: Recorded }).__skepiMock;
@@ -110,6 +118,20 @@ test('map: offline PMTiles through the maps protocol, emergency POIs and filters
     (window as unknown as { __skepiMap: { jumpTo: (o: { center: [number, number]; zoom: number }) => void } }).__skepiMap.jumpTo({ center: [21.7346, 38.2466], zoom: 12 });
   });
   await expect(page.getByTestId('poi-count')).toContainText('2 emergency points');
+  // The app's own layer is drawn, separate from the base style's `pois` symbols, and a circle can be clicked.
+  const drawn = (): Promise<{ layer: boolean; source: boolean; rendered: number }> =>
+    page.evaluate(() => {
+      const m = (window as unknown as { __skepiMap: MapGl }).__skepiMap;
+      return { layer: Boolean(m.getLayer('skepi-pois')), source: Boolean(m.getSource('skepi-pois')), rendered: m.queryRenderedFeatures({ layers: ['skepi-pois'] }).length };
+    });
+  await expect.poll(drawn, { timeout: 15_000 }).toEqual({ layer: true, source: true, rendered: 2 });
+  const at = await page.evaluate(() => {
+    const m = (window as unknown as { __skepiMap: MapGl }).__skepiMap;
+    const [lon, lat] = m.queryRenderedFeatures({ layers: ['skepi-pois'] })[0]?.geometry.coordinates ?? [0, 0];
+    return m.project([lon ?? 0, lat ?? 0]);
+  });
+  await page.getByTestId('map').click({ position: { x: at.x, y: at.y } });
+  await expect(page.getByTestId('poi-selected')).toBeVisible();
   await page.getByTestId('poi-filter-hospital').uncheck();
   await expect(page.getByTestId('map-attribution')).toContainText('OpenStreetMap');
 });

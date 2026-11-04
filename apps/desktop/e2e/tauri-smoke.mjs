@@ -269,10 +269,50 @@ try {
   check('map renders from the verified PMTiles pack (maps protocol)', true, await textOf(tid('map-status')));
   check('emergency POIs from the places pack', /\d+ emergency point/.test(await textOf(tid('poi-count'))), await textOf(tid('poi-count')));
   await screenshot('map');
-  // The focus layer of the place, then pan and zoom with real input: the worker keeps drawing (same-origin worker, CSP).
+  // What is drawn, not only what was queried: pixels of the app's own circles in a screenshot of the map.
   check('focused place is named on the map', (await textOf(tid('map-focus'))).length > 0, await textOf(tid('map-focus')));
   const mapElement = await find(tid('map'));
   const mapPixels = async () => wd('GET', `/session/${S}/element/${mapElement}/screenshot`);
+  // packages/ui-tokens POI_COLORS without police, whose blue is the focus circle's (Map.tsx).
+  const POI_RGB = [[0xb9, 0x1c, 0x1c], [0x15, 0x80, 0x3d], [0xc2, 0x41, 0x0c], [0x0e, 0x74, 0x90], [0x6d, 0x28, 0xd9]];
+  const FOCUS_RGB = [0x1d, 0x4e, 0xd8];
+  const countColours = async (colours) =>
+    runInPage(
+      `const [png, colours, done] = arguments;
+      const img = new Image();
+      img.onerror = () => done(null);
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = img.width;
+        c.height = img.height;
+        const x = c.getContext('2d');
+        x.drawImage(img, 0, 0);
+        const d = x.getImageData(0, 0, c.width, c.height).data;
+        const n = colours.map(() => 0);
+        for (let i = 0; i < d.length; i += 4) {
+          colours.forEach((k, j) => {
+            if (Math.abs(d[i] - k[0]) <= 8 && Math.abs(d[i + 1] - k[1]) <= 8 && Math.abs(d[i + 2] - k[2]) <= 8) n[j] += 1;
+          });
+        }
+        done(n);
+      };
+      img.src = 'data:image/png;base64,' + png;`,
+      [await mapPixels(), colours],
+    );
+  const sum = (n) => n.reduce((a, b) => a + b, 0);
+  const FILTERS = ['hospital', 'pharmacy', 'fire_station', 'police', 'drinking_water', 'shelter'].map((c) => tid(`poi-filter-${c}`));
+  const toggleFilters = async () => {
+    for (const f of FILTERS) await click(f);
+    await sleep(2000);
+  };
+  const [focusPixels] = await countColours([FOCUS_RGB]);
+  check('focus circle is drawn on the map', focusPixels > 50, `${String(focusPixels)} pixels`);
+  const poisOn = sum(await countColours(POI_RGB));
+  await toggleFilters();
+  const poisOff = sum(await countColours(POI_RGB));
+  await toggleFilters();
+  check('POI circles are drawn, and go when their filters are off', poisOn > 50 && poisOff < poisOn / 5, `${String(poisOn)} pixels on, ${String(poisOff)} off`);
+  // Then pan and zoom with real input: the worker keeps drawing (same-origin worker, CSP).
   const before = await mapPixels();
   await wd('POST', `/session/${S}/actions`, {
     actions: [

@@ -24,6 +24,10 @@ import { llama, useApp, verifiedPacks } from '../lib/store';
 /** Below this zoom the POI layer stays empty (thousands of points would hide the map). */
 const POI_MIN_ZOOM = 10;
 
+/** The app's own sources and layers: the base style already has a symbol layer called `pois`. */
+const POI_LAYER = 'skepi-pois';
+const FOCUS_LAYER = 'skepi-focus';
+
 // MapLibre 6 ships ES modules only; under a bundler the worker is a same-origin file named here (no blob: in the CSP).
 setWorkerUrl(workerUrl);
 
@@ -108,13 +112,12 @@ export function MapScreen() {
     m.on('load', () => {
       setReady(Math.round(performance.now() - started));
       m.resize();
-      if (m.getLayer('pois')) return;
       // POIs read before the style finished loading are drawn now.
-      m.addSource('pois', { type: 'geojson', data: poisToGeoJson(poisRef.current) });
+      m.addSource(POI_LAYER, { type: 'geojson', data: poisToGeoJson(poisRef.current) });
       m.addLayer({
-        id: 'pois',
+        id: POI_LAYER,
         type: 'circle',
-        source: 'pois',
+        source: POI_LAYER,
         paint: {
           'circle-radius': 7,
           'circle-color': ['match', ['get', 'category'], ...EMERGENCY_CATEGORIES.flatMap((c) => [c, POI_COLORS[c]]), '#4b5563'] as unknown as string,
@@ -123,8 +126,8 @@ export function MapScreen() {
         },
       });
       if (focus) {
-        m.addSource('focus', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Point', coordinates: [focus.lon, focus.lat] }, properties: {} } });
-        m.addLayer({ id: 'focus', type: 'circle', source: 'focus', paint: { 'circle-radius': 10, 'circle-color': '#1d4ed8', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 3 } });
+        m.addSource(FOCUS_LAYER, { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Point', coordinates: [focus.lon, focus.lat] }, properties: {} } });
+        m.addLayer({ id: FOCUS_LAYER, type: 'circle', source: FOCUS_LAYER, paint: { 'circle-radius': 10, 'circle-color': '#1d4ed8', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 3 } });
       }
       updateView();
     });
@@ -136,7 +139,7 @@ export function MapScreen() {
     m.on('error', (e) => {
       setFailed(e.error.message);
     });
-    m.on('click', 'pois', (e: MapLayerMouseEvent) => {
+    m.on('click', POI_LAYER, (e: MapLayerMouseEvent) => {
       // The feature id is the index in the POI list (poisToGeoJson): row ids repeat across packs.
       const id = e.features?.[0]?.id;
       setSelected((cur) => (typeof id === 'number' ? (poisRef.current[id] ?? cur) : cur));
@@ -178,7 +181,7 @@ export function MapScreen() {
   }, [view, enabled, placesKey]);
 
   useEffect(() => {
-    const src = map.current?.getSource<GeoJSONSource>('pois');
+    const src = map.current?.getSource<GeoJSONSource>(POI_LAYER);
     void src?.setData(poisToGeoJson(pois)).catch(() => undefined);
   }, [pois]);
 

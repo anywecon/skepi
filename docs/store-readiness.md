@@ -300,6 +300,10 @@ comparison and `llvm-objcopy`/`llvm-readelf` from NDK 27.3 (diffoscope is not av
 
 ## 6. fdroiddata recipe (submitted 2026-10-22, merge request 53588; `fdroid build` in CI gives the published bytes)
 
+**Draft 2026-11-04:** `docs/fdroid/org.skepi.app.yml` targets `v0.2.1-preview`, versionCode 6, commit
+`ebd321e03bdb65ee118e4ba592218e90e50514b2`. Not tagged and not sent to GitLab: MR 53588 and the copy below stay on
+0.2.0-preview until the owner updates them.
+
 The recipe lives in `docs/fdroid/org.skepi.app.yml` (copied below). Since 2026-10-25 it targets
 `v0.2.0-preview`, versionCode 5, one build: `commit:` is `4faad7c0e9cdd3fcf0994b95a56abd3e8c471f82` (the
 tag); `android-repro` run 40140411948 with this recipe: (a), (b) and `fdroid-build` all

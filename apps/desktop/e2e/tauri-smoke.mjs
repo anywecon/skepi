@@ -269,6 +269,44 @@ try {
   check('map renders from the verified PMTiles pack (maps protocol)', true, await textOf(tid('map-status')));
   check('emergency POIs from the places pack', /\d+ emergency point/.test(await textOf(tid('poi-count'))), await textOf(tid('poi-count')));
   await screenshot('map');
+  // The focus layer of the place, then pan and zoom with real input: the worker keeps drawing (same-origin worker, CSP).
+  check('focused place is named on the map', (await textOf(tid('map-focus'))).length > 0, await textOf(tid('map-focus')));
+  const mapElement = await find(tid('map'));
+  const mapPixels = async () => wd('GET', `/session/${S}/element/${mapElement}/screenshot`);
+  const before = await mapPixels();
+  await wd('POST', `/session/${S}/actions`, {
+    actions: [
+      {
+        type: 'pointer',
+        id: 'mouse',
+        parameters: { pointerType: 'mouse' },
+        actions: [
+          { type: 'pointerMove', duration: 0, origin: { [ELEMENT]: mapElement }, x: 0, y: 0 },
+          { type: 'pointerDown', button: 0 },
+          { type: 'pointerMove', duration: 300, origin: 'pointer', x: -160, y: -90 },
+          { type: 'pointerUp', button: 0 },
+        ],
+      },
+    ],
+  });
+  await sleep(2500);
+  const panned = await mapPixels();
+  check('map pans with the mouse', panned !== before);
+  await screenshot('map-panned');
+  await click('.maplibregl-ctrl-zoom-in');
+  await click('.maplibregl-ctrl-zoom-in');
+  await sleep(2500);
+  const zoomedIn = await mapPixels();
+  check('map zooms in', zoomedIn !== panned);
+  await screenshot('map-zoomed-in');
+  await click('.maplibregl-ctrl-zoom-out');
+  await click('.maplibregl-ctrl-zoom-out');
+  await click('.maplibregl-ctrl-zoom-out');
+  await click('.maplibregl-ctrl-zoom-out');
+  await sleep(2500);
+  check('map zooms out', (await mapPixels()) !== zoomedIn);
+  await screenshot('map-zoomed-out');
+  check('no map error after pan and zoom', !(await visible('map-error')) && (await textOf(tid('map-status'))).includes('offline PMTiles'), await textOf(tid('map-status')));
   sampleEgress();
 
   // Emergency question: the country number before any Layer 1 excerpt.

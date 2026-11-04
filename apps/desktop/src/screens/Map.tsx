@@ -10,8 +10,9 @@ import {
   type Place,
 } from '@skepi/core';
 import { POI_COLORS, POI_OUTLINE } from '@skepi/ui-tokens';
-import { addProtocol, Map as MapLibre, NavigationControl, type GeoJSONSource, type MapLayerMouseEvent, type StyleSpecification } from 'maplibre-gl';
+import { addProtocol, Map as MapLibre, NavigationControl, setWorkerUrl, type GeoJSONSource, type MapLayerMouseEvent, type StyleSpecification } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import baseStyle from '../../../mobile/assets/map/style.json';
 import { useNav } from '../App';
@@ -22,6 +23,9 @@ import { llama, useApp, verifiedPacks } from '../lib/store';
 
 /** Below this zoom the POI layer stays empty (thousands of points would hide the map). */
 const POI_MIN_ZOOM = 10;
+
+// MapLibre 6 ships ES modules only; under a bundler the worker is a same-origin file named here (no blob: in the CSP).
+setWorkerUrl(workerUrl);
 
 /**
  * The bundled Protomaps style with local glyphs/sprites (app origin) over every verified map pack: one
@@ -73,20 +77,27 @@ export function MapScreen() {
   useEffect(() => {
     if (mapIds.length === 0 || !container.current) return;
     const started = performance.now();
-    const m = new MapLibre({
-      container: container.current,
-      style: offlineStyle(
-        mapIds.map((id) => ({
-          id,
-          url: pmtilesUrl(id, (name, handler) => {
-            addProtocol(name, handler);
-          }),
-        })),
-      ),
-      center: focus ? [focus.lon, focus.lat] : home.center,
-      zoom: focus ? 15 : home.zoom,
-      attributionControl: false,
-    });
+    let m: MapLibre;
+    try {
+      m = new MapLibre({
+        container: container.current,
+        style: offlineStyle(
+          mapIds.map((id) => ({
+            id,
+            url: pmtilesUrl(id, (name, handler) => {
+              addProtocol(name, handler);
+            }),
+          })),
+        ),
+        center: focus ? [focus.lon, focus.lat] : home.center,
+        zoom: focus ? 15 : home.zoom,
+        attributionControl: false,
+      });
+    } catch (e) {
+      // MapLibre 6 requires WebGL2: without it the constructor throws (GPUInitializationError).
+      setFailed(e instanceof Error ? e.message : String(e));
+      return;
+    }
     map.current = m;
     if (import.meta.env.MODE === 'e2e') (window as unknown as { __skepiMap?: MapLibre }).__skepiMap = m;
     m.addControl(new NavigationControl({ showCompass: true }), 'top-right');
@@ -122,7 +133,7 @@ export function MapScreen() {
       m.resize();
     });
     observer.observe(container.current);
-    m.on('error', (e: { error: Error }) => {
+    m.on('error', (e) => {
       setFailed(e.error.message);
     });
     m.on('click', 'pois', (e: MapLayerMouseEvent) => {
@@ -168,7 +179,7 @@ export function MapScreen() {
 
   useEffect(() => {
     const src = map.current?.getSource<GeoJSONSource>('pois');
-    src?.setData(poisToGeoJson(pois));
+    void src?.setData(poisToGeoJson(pois)).catch(() => undefined);
   }, [pois]);
 
   if (status === 'ready' && mapIds.length === 0) {

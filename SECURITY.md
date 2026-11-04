@@ -1,6 +1,6 @@
 # Security policy
 
-S.K.E.P.I. is a Developer Preview (`v0.2.0-preview`). Security reports are welcome and handled privately.
+S.K.E.P.I. is a Developer Preview (`v0.2.1-preview`). Security reports are welcome and handled privately.
 
 ## Reporting a vulnerability
 

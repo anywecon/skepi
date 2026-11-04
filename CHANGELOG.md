@@ -5,6 +5,28 @@ suffix. Phase reports in `docs/` have the details and the measurements.
 
 ## [Unreleased]
 
+## [0.2.1-preview] — Developer Preview (Android + Windows)
+
+Fifth preview, for developers and testers. **Not for emergency use.** A security and fixes update; the
+signed catalog, the packs and the emergency cards are unchanged.
+
+### Security
+- Desktop: maplibre-gl 5.24.0 → 6.16.0 (GHSA-jrc7-96c5-q579). The map worker now loads from the app itself
+  and the content security policy no longer allows `blob:` workers. The map now needs WebGL2; without it
+  the map screen shows an error instead of a blank map.
+- Android: deep links longer than 2048 characters are ignored before they are parsed: the app stays on
+  the screen it was on, or opens the start screen.
+
+### Fixed
+- Desktop: the emergency points and the highlight of a selected place were never drawn on the map, and
+  clicking a point did nothing. Both now work.
+
+### Changed
+- Desktop: some street labels are placed differently at high zoom (MapLibre 6).
+- Dependency updates. Tools and build only: simple-git 4, node-forge 1.4.1, uuid 11 and zod 4.6.7 through
+  scoped overrides. Desktop: rustls 0.23.46, tokio 1.53.3, rustls-webpki 0.103.16, webpki-root-certs 1.0.11.
+  Accepted risks are listed in `docs/threat-model.md`.
+
 ## [0.2.0-preview] — Developer Preview (Android + Windows)
 
 Fourth preview, for developers and testers. **Not for emergency use.** Offline maps and places for

@@ -34,14 +34,14 @@ Android phones and Windows computers; a computer can share packs with nearby pho
 
 ## Install
 
-Download from the release page (`v0.2.0-preview`): the Android APK, the Windows MSI or NSIS installer,
+Download from the release page (`v0.2.1-preview`): the Android APK, the Windows MSI or NSIS installer,
 and `SHA256SUMS.txt`.
 
 **1. Check the SHA-256 of what you downloaded**
 
 ```powershell
 # Windows PowerShell
-Get-FileHash .\skepi-0.2.0-preview-arm64.apk, .\SKEPI_0.2.0-preview_x64_en-US.msi, .\SKEPI_0.2.0-preview_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\skepi-0.2.1-preview-arm64.apk, .\SKEPI_0.2.1-preview_x64_en-US.msi, .\SKEPI_0.2.1-preview_x64-setup.exe -Algorithm SHA256
 ```
 ```sh
 # Linux / macOS
@@ -52,7 +52,7 @@ The values must equal the lines of `SHA256SUMS.txt` from the release page.
 **2. Android (arm64, Android 7.0 / API 24 or newer)**: check the APK's signing certificate, then install.
 
 ```sh
-apksigner verify --print-certs skepi-0.2.0-preview-arm64.apk   # Android SDK build-tools
+apksigner verify --print-certs skepi-0.2.1-preview-arm64.apk   # Android SDK build-tools
 ```
 The certificate SHA-256 must be
 `7d61c38241b178f84b12dd9a67af6b60b56159b1a0ff067fe672db45dd45447e` (also shown in the app under

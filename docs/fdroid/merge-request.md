@@ -1,109 +1,116 @@
 # fdroiddata merge request: New app org.skepi.app (S.K.E.P.I.)
 
 Text for the owner's merge request on <https://gitlab.com/fdroid/fdroiddata> (not opened by this repo).
-Steps: in the MR branch, replace `metadata/org.skepi.app.yml` with a copy of
-[`org.skepi.app.yml`](org.skepi.app.yml) (one build: `v0.1.2-preview`, `commit:` the full hash of its
-tag), update the description below and reply in the thread. The MR was opened for `0.1.1-preview`; that
-APK was re-aligned by apksigner while signing, so F-Droid could not copy its signature, and
-`0.1.2-preview` replaces it.
+For each new version: in the MR branch, replace `metadata/org.skepi.app.yml` with
+[`org.skepi.app.yml`](org.skepi.app.yml) (one build: `commit:` the full hash of the tag), update the
+description below and reply in the thread. fdroiddata requires LF line endings: when applying a patch on a
+Windows checkout with `core.autocrlf=true`, use `git -c core.autocrlf=false apply`.
 
 **Title:** `New app: S.K.E.P.I. (org.skepi.app)`
 
-**Opened 2026-10-22:** <https://gitlab.com/fdroid/fdroiddata/-/merge_requests/53588>. Review
-(Licaon_Kter): "get esbuild from Debian or build it", answered by the esbuild srclib build below.
-Reply for the MR thread:
+**Status (checked 2026-11-05, public GitLab data):** <https://gitlab.com/fdroid/fdroiddata/-/merge_requests/53588>,
+opened 2026-10-22, open, labels `New App`, `waiting-for-upstream`. The MR branch is on `v0.2.1-preview`,
+versionCode 6, `commit:` `ebd321e03bdb65ee118e4ba592218e90e50514b2` (owner, MR commit `b879aa18`, 2026-11-05;
+the file is byte-identical to `org.skepi.app.yml`, SHA-256
+`c62ab5d70dfcbac92cfcb7d8c002ab1f2ca4edadd7a337364ba81e714e601c5e`), with the owner's reply in the thread.
+Pipeline 3032936740 on that commit was running at this check. Last reviewer note: 2026-10-22 12:25 UTC
+(licaon-kter): whether both `SKEPI_PREVIEW=1` and `-PskepiPreview=true` are needed. The owner answered the
+same day and offered to drop the property; the owner's later notes have no reply yet.
 
-> Updated to 0.1.2-preview (versionCode 4). The 0.1.1-preview APK was re-aligned by apksigner while
-> signing, so the signature could not be copied; 0.1.2-preview is signed with the layout preserved, and
-> before publishing we ran fdroidserver's check ourselves (apksigcopier 1.1.1 copy onto our CI build,
-> apksigner verify, byte-identical). esbuild is now built from source: `srclibs: - esbuild@v0.28.2`
-> (the exact version pnpm-lock.yaml resolves for tsx), `golang-go` from Debian,
-> `go build -C $$esbuild$$ ./cmd/esbuild` and `ESBUILD_BINARY_PATH` exported in the Gradle build's
-> shell; `@esbuild/linux-x64` is gone from scanignore, so scandelete removes the prebuilt. Our CI runs
-> this recipe in buildserver-trixie at 4af3b0c43daf and gets 9857b660…12c1, the same bytes as two independent
-> CI builds. Also fixed: rewritemeta formatting and UpdateCheckData (version in apps/mobile/app.json).
-> This version's first-aid cards quote the IFRC guidelines (non-commercial terms), so NonFreeAssets
-> applies; see the description.
+**Open:** the MR's description still says 0.2.0-preview. The text below is its 0.2.1-preview version.
 
 ---
+
+## Abstract for new app inclusion
+
+### Please introduce the functions and usage of your app in summary, and also attach some screenshots.
 
 **S.K.E.P.I.** (Survival Knowledge & Emergency Pocket Intelligence) is a fully offline knowledge and
 emergency app: Wikipedia (Kiwix ZIM packs) search and reading in a sealed viewer, answers built from
 verbatim source excerpts with an optional on-device AI summary (Qwen2.5-1.5B via llama.cpp) whose every
-sentence must cite an excerpt, offline vector maps (PMTiles, OpenStreetMap) with emergency points, the
-emergency number for the country, an SOS torch, a compass, and pack sharing between phones over the local
-network. No accounts, analytics, ads or telemetry.
+sentence must cite an excerpt, offline vector maps and place search for every country, downloadable per
+country or per part of a large country (PMTiles, OpenStreetMap), with emergency points, the emergency
+number for the country, an SOS torch, a compass, and pack sharing between phones over the local network. No
+accounts, analytics, ads or telemetry.
 
 - Source: https://github.com/Fiouri/skepi (GPL-3.0-or-later)
-- Release: https://github.com/Fiouri/skepi/releases/tag/v0.1.2-preview
-- Status: **Developer Preview** (`0.1.2-preview`), labelled "not for emergency use" in the app, the
-  description and the release. The emergency cards quote their sources word for word with citations
+- Release: https://github.com/Fiouri/skepi/releases/tag/v0.2.1-preview
+- Screenshots: https://github.com/Fiouri/skepi/tree/HEAD/fastlane/metadata/android/en-US/images/phoneScreenshots
+- Status: **Developer Preview** (`0.2.1-preview`), labelled "not for emergency use" in the app, the
+  description and the release. The preview build (`SKEPI_PREVIEW=1 -PskepiPreview=true`) adds a permanent
+  "not for emergency use" label. The emergency cards quote their sources word for word with citations
   (first aid: IFRC Guidelines 2025; water, earthquake, fire, flood: CDC and FEMA Ready.gov); a CI check
   proves every step against its source and the release build refuses any other card text.
 
-**Reproducible build.** The recipe uses `Binaries:` and `AllowedAPKSigningKeys:` so F-Droid can publish
-the upstream-signed APK:
+### Please elaborate why you wrote this app. Please highlight the unique functions it provides over other similar apps in F-Droid.
+
+It is built for internet blackouts and places without signal. Kiwix reads ZIM files and Organic Maps/CoMaps
+show maps; S.K.E.P.I. puts offline knowledge, maps and emergency tools in one app and adds: extractive
+answers with citations (the user sees the source text first), an optional on-device AI summary that is
+checked sentence by sentence against the sources, a signed content catalog (every file is verified before
+it is opened), and phone-to-phone sharing of the content packs and of the app itself when there is no
+internet.
+
+**Reproducible build.** The recipe uses `Binaries:` and `AllowedAPKSigningKeys:` so F-Droid can publish the
+upstream-signed APK:
 
 - `fdroid build` of this recipe (fdroidserver at the commit fdroiddata pins, in
-  `registry.gitlab.com/fdroid/fdroidserver:buildserver-trixie`) runs in the upstream CI and gives the
-  same bytes as two independent CI builds on different runners and paths: SHA-256
-  `9857b660808d9c5e1f53a3d1bfcd185a7489b8a0b2ded6ff04b1f7c1e9ad12c1` at `4af3b0c43daf` (GitHub Actions
-  run 39778296502).
-- The release APK `skepi-0.1.2-preview-arm64.apk` is that unsigned APK plus an APK Signature Scheme v2
-  signing block, signed with the byte layout preserved. Before publishing, the signature was copied onto
-  the unsigned CI build with apksigcopier 1.1.1 as fdroidserver does, verified with apksigner, and the
-  result was byte-identical to the published APK. Signer certificate SHA-256
+  `registry.gitlab.com/fdroid/fdroidserver:buildserver-trixie`) runs in the upstream CI and gives the same
+  bytes as two independent CI builds on different runners and paths: SHA-256
+  `a99ed9da81c1440fa9962acb06a8a973e5d88ce580a0259c9345444b4f36e74a` at `ebd321e03bdb` (GitHub Actions run
+  41948574811).
+- The release APK `skepi-0.2.1-preview-arm64.apk` is that unsigned APK signed with APK Signature Scheme v2
+  only, with the byte layout preserved; before publishing, its signature was copied onto the CI build with
+  apksigcopier 1.1.1 and verified byte-identical, as fdroidserver does. Signer certificate SHA-256
   `7d61c38241b178f84b12dd9a67af6b60b56159b1a0ff067fe672db45dd45447e`.
 - How the build was made reproducible (build-id, `-ffile-prefix-map`, no ThinLTO for Reanimated, fixed
   dev-server IP): https://github.com/Fiouri/skepi/blob/HEAD/docs/store-readiness.md (§4, §6).
 
 **Build notes for reviewers.**
 
-- Expo/React Native app in a pnpm monorepo: `subdir: apps/mobile`, `android/` is generated by
-  `expo prebuild`; every Expo module is built from source (`buildFromSource`), llama.cpp is compiled from
-  source (only the four packaged CPU variants).
-- Debian trixie has no JDK 17: `scripts/android/jdk21.sh` + `-PskepiJdk21=true` build with OpenJDK 21
-  (React Native and Expo request a JDK 17 toolchain). Node 24 comes from forky (`sudo:`), pnpm 10.33.0
-  from npm.
+- Expo/React Native app in a pnpm monorepo: `subdir: apps/mobile`, `android/` is generated by `expo prebuild`;
+  every Expo module is built from source (`buildFromSource`), llama.cpp is compiled from source (only the
+  four packaged CPU variants).
+- Debian trixie has no JDK 17: `scripts/android/jdk21.sh` + `-PskepiJdk21=true` build with OpenJDK 21 (React
+  Native and Expo request a JDK 17 toolchain). Node 24 comes from forky (`sudo:`), pnpm 10.33.0 from npm.
 - `scandelete: node_modules` deletes the prebuilt files the scanner flags there (unused Expo
   `local-maven-repo` AARs, CLI binaries, iOS archives); the build uses none of them.
-- esbuild is built from source: `srclibs: - esbuild@v0.28.2` (the version `pnpm-lock.yaml` resolves for
-  tsx), Debian's `golang-go`, and tsx is pointed at it with `ESBUILD_BINARY_PATH` in the Gradle build's
-  shell (tsx runs the catalog, card and bundle checks during the Gradle build). The prebuilt
-  `@esbuild/linux-x64` is no longer scanignored, so scandelete removes it. The upstream CI runs this
-  recipe at `4af3b0c4` and gets the same `9857b660…12c1` bytes.
 - `scanignore` covers what the build runs or reads: `hermes-compiler` (React Native's Hermes bytecode
-  compiler, part of the standard RN build) and four Gradle files that the scanner flags for
+  compiler, part of the standard RN build), and four Gradle files that the scanner flags for
   `unknown maven repo` lines only.
+- esbuild is built from source: `srclibs: - esbuild@v0.28.2` (the version `pnpm-lock.yaml` resolves for tsx,
+  which runs the catalog, card and bundle checks during the Gradle build), Debian's `golang-go`, and
+  `ESBUILD_BINARY_PATH` in the Gradle build's shell; scandelete removes the prebuilt `@esbuild/linux-x64`.
 - `prebuild` removes MapLibre's `play-services-location` dependency line (used only by its non-default
   Google location engine); the app uses the platform location provider.
 - `ndk: 27.1.12297006` is the only NDK the build uses.
 
-**Anti-features: `NonFreeAssets` for the first-aid card text.** The eight first-aid cards (CPR, severe
-bleeding, choking, burns, fractures, hypothermia, heatstroke, poisoning) quote the IFRC International
-First Aid, Resuscitation and Education Guidelines 2025 word for word (© IFRC, Geneva, 2025), whose terms
-are: "Copies of all or part of this study may be made for non-commercial use, providing the source is
-acknowledged." That is not a free licence. Each card cites its section and page, and About carries the
-IFRC attribution; the app is non-commercial (no paid features, ads, analytics or data collection). The
-water, earthquake, fire and flood cards quote US federal public-domain pages (CDC, FEMA Ready.gov) with
-citation and the agencies' no-endorsement statement and need no anti-feature; the code stays
-GPL-3.0-or-later. Otherwise none: no tracking, ads, Google Play Services or Firebase (release runtime
-classpath audited). The network is used only when the user asks: content packs are downloaded from
-Kiwix's mirrors, Hugging Face (the GGUF model) and the project's GitHub releases, listed in a signed
-catalog; all are freely licensed files (Wikipedia CC BY-SA 4.0, OpenStreetMap ODbL 1.0, Qwen2.5
-Apache-2.0), and every pack can also be imported from a file or received from another device, so the app
-does not depend on a non-free network service.
+**Anti-features: NonFreeAssets** (the eight first-aid cards quote the IFRC Guidelines 2025 under its
+non-commercial terms; see below). Otherwise none: No tracking, ads, Google Play Services or Firebase (release
+runtime classpath audited). The network is used only when the user asks: content packs are downloaded from
+Kiwix's mirrors, Hugging Face (the GGUF model) and the project's GitHub releases, listed in a signed catalog;
+all are freely licensed files (Wikipedia CC BY-SA 4.0, OpenStreetMap ODbL 1.0, Qwen2.5 Apache-2.0), and every
+pack can also be imported from a file or received from another device, so the app does not depend on a
+non-free network service.
 
-**Permissions:** `INTERNET`/`ACCESS_NETWORK_STATE` (pack downloads the user selects, only from the
-signed catalog's hosts), fine/coarse location (the live position and heading on the map while the map
-is open and the app is in front, and a one-shot position in Tools when the user taps; platform GPS
-provider, never stored or sent), `CAMERA` (scans the other phone's pairing QR code; no
-photos or video), `NEARBY_WIFI_DEVICES` with `neverForLocation` and the Wi-Fi/network state permissions
-(local-only hotspot for phone-to-phone sharing). Justifications:
-https://github.com/Fiouri/skepi/blob/HEAD/docs/store-readiness.md (§8).
+**Permissions:** `INTERNET`/`ACCESS_NETWORK_STATE` (pack downloads the user selects, only from the signed
+catalog's hosts), fine/coarse location (position on the map and in Tools; foreground only, never stored or
+sent), `CAMERA` (scans the other phone's pairing QR code; no photos or video), `NEARBY_WIFI_DEVICES` with
+`neverForLocation` and the Wi-Fi/network state permissions (local-only hotspot for phone-to-phone sharing).
+Justifications: https://github.com/Fiouri/skepi/blob/HEAD/docs/store-readiness.md (§8).
+
+**Card sources.** The first-aid cards quote, word for word, the IFRC International First Aid, Resuscitation
+and Education Guidelines 2025 (© IFRC, Geneva, 2025), whose terms are "Copies of all or part of this study
+may be made for non-commercial use, providing the source is acknowledged". That is not a free licence, so
+`NonFreeAssets` applies; the code stays GPL-3.0-or-later and the app stays non-commercial. Cards quoting US
+federal public-domain pages (CDC, FEMA Ready.gov) need no anti-feature.
 
 **Updates:** `UpdateCheckMode: Tags ^v[0-9.]+(-preview)?$`, `AutoUpdateMode: Version`; versionCode is in
-`apps/mobile/app.json`, release tags are `v<versionName>`. Metadata (description, changelogs, screenshots)
-is in the repository under `fastlane/metadata/android/en-US/`.
+`apps/mobile/app.json`, release tags are `v<versionName>`. Metadata (description, changelogs, screenshots) is
+in the repository under `fastlane/metadata/android/en-US/`.
 
 I am the author and maintainer of the app.
+
+**CI:** my GitLab account is not identity-verified; if the pipeline does not start, please trigger it.
+
+(The MR's template checklist stays as it is in the MR.)

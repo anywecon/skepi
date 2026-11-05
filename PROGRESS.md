@@ -1,6 +1,19 @@
-**Current:** v0.2.1-preview prepared in local commits (`ebd321e` release, `1928d6d` draft F-Droid recipe), not pushed, not tagged, not signed; gate green except the `countries` flow (Norton intercepts the test mirror's TLS) and two checks that need a signed APK
-**Next step:** owner: pause Norton Web/Mail Shield so `e2e/run-countries-e2e.ps1` can run; then decide push, tag, signing and the MR 53588 update. After signing: `onboarding` on the release build and step 6 of `docs/release-process.md`. The S23 still runs the signed test APK of 0.2.0-preview / versionCode 5. Still open from before: delete `SKEPI_RELEASE_STORE_PASSWORD` / `SKEPI_RELEASE_KEY_PASSWORD` from `~/.gradle/gradle.properties`; watch first.aid@ifrc.org; follow MR 53588
-**Last session:** 2026-11-04 — ios-e2e failures traced to runner stalls, not 27c1cd7; nightly on main green after one rerun of ios-build; v0.2.1-preview prepared; verify 49/49, smoke 33/33, Playwright 17/17, 8 of 9 flows on the debug build; `countries` blocked, 4 Station tests judged by CI
+**Current:** v0.2.1-preview pushed to main (`ac9a7ee`), not tagged, not signed, not published; unsigned artifact `a99ed9da…e74a` reproducible at `ebd321e` and `ac9a7ee`; `countries` still blocked by Norton; `8dff852` (iOS timeouts) and `e8f9c78` (release notes) are local
+**Next step:** owner: sign the artifact of run 41948574811 (`skepi-0.2.1-preview-vc6-ebd321e03bdb-unsigned`), then Claude runs `onboarding` on the signed build and step 6 of `docs/release-process.md` and stops before any tag or publish. Owner also decides: which Norton switch to turn off for `countries`, and the push of the two local commits. Temp dirs `skepi-fd`, `gradle-skepi-fd`, `skepi-smoke-content` stay until the release is published, then ask the owner. Still open from before: delete `SKEPI_RELEASE_STORE_PASSWORD` / `SKEPI_RELEASE_KEY_PASSWORD` from `~/.gradle/gradle.properties`; watch first.aid@ifrc.org; follow MR 53588
+**Last session:** 2026-11-05 — pushed the 3 release commits; CI, repro and `fdroid-build` green; `countries` failed again with Web Shield paused (S23 sees Norton's certificate through `adb reverse`); iOS timeouts and release notes committed locally; verify 49/49
+
+## v0.2.1-preview pushed 2026-11-05 (no tag, no release, no GitLab action)
+
+- CI on `ac9a7ee`: run 41943926913 green (`verify`, `rag-eval-smoke`, `android-release-guards`, `desktop-windows`, `ios-build`, `desktop-macos`; `ios-e2e` skipped on push). Run 41943926946: repro a and b byte-identical, `fdroid-build` byte-identical, SHA-256 `a99ed9da81c1440fa9962acb06a8a973e5d88ce580a0259c9345444b4f36e74a`.
+- The recipe names `ebd321e`, so `android-repro` was also dispatched with `app_commit=ebd321e…`: run 41948574811 green, same SHA-256, `fdroid-build` built 0.2.1-preview (6) at that commit. Artifact to sign: `skepi-0.2.1-preview-vc6-ebd321e03bdb-unsigned`. The local Windows-host APK of `ebd321e` (`d2941dd9…5021`) differs from the CI bytes and is not the release artifact.
+- `countries` on the S23, debug build, device lock, Web Shield paused by the owner: failed at "Catalog updated to 5", 0 mirror requests, 0 bytes, `Trust anchor for certification path not found`. Measured with the mirror running: `curl -vk https://127.0.0.1:8443/...` on the S23 through `adb reverse` shows issuer "Norton Web/Mail Shield Untrusted Root"; a Node client on the PC gets the same certificate (SHA-256 `A7:4E:02:77…`); the mirror's own `server.crt` is issued by "SKEPI Test Mirror CA" (`D9:43:B3:BE…`). Interception continues while Web Shield is paused; not worked around.
+- Local, not pushed: `8dff852` article wait 60 s, Swift test control 60 s, onboarding tier wait 30 s; parity thresholds unchanged. YAML parses; `pnpm verify` 49/49; the Swift change and the flows have not run (macOS CI only). `e8f9c78` `docs/release-notes/v0.2.1-preview.md`.
+- Release assets (as in 0.2.0-preview): APK, MSI, NSIS, `SHA256SUMS.txt`. No workflow publishes app releases and `tauri.conf.json` targets only msi and nsis; the dmg in the CI artifact `desktop-macos` is not a release asset.
+
+## Open follow-ups (from the owner, 2026-11-05; not started)
+
+- (a) The pinned Protomaps build 20261024 returns 404. Update the pack-build pin to a current build and record the new hash.
+- (b) Add a `desktop-macos` map smoke step to CI (MapLibre 6 worker on WKWebView) before any macOS release.
 
 ## v0.2.1-preview prepared 2026-11-04 (local commits, nothing pushed or released)
 

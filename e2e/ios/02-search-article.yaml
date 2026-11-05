@@ -42,7 +42,8 @@ env:
 - extendedWaitUntil:
     visible:
       text: "Opened in .*"
-    timeout: 30000
+    # The first WebContent launch took 30.9 s on a stalled hosted runner (nightly of 2026-11-04).
+    timeout: 60000
 - assertVisible:
     id: article-view
 - assertVisible: "Blocked requests: 0"

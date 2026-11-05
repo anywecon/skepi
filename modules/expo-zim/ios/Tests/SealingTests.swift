@@ -86,7 +86,8 @@ final class SealingTests: XCTestCase {
     var control: WKWebView? = WKWebView(frame: CGRect(x: 0, y: 0, width: 320, height: 480), configuration: WKWebViewConfiguration())
     attach(control!)
     control?.loadHTMLString(page(controlServer.port), baseURL: nil)
-    XCTAssertTrue(controlServer.waitForConnections(atLeast: 1, timeout: 20), "control web view never connected")
+    // 60 s: the first WebContent launch can take over 30 s on a stalled hosted runner.
+    XCTAssertTrue(controlServer.waitForConnections(atLeast: 1, timeout: 60), "control web view never connected")
     control?.stopLoading()
     control?.removeFromSuperview()
     control = nil

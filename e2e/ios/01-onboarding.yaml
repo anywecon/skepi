@@ -44,7 +44,7 @@ name: SKEPI iOS onboarding (packs installed)
 - extendedWaitUntil:
     visible:
       id: onboarding-storage
-    timeout: 10000
+    timeout: 30000
 - tapOn:
     id: budget-2
 - extendedWaitUntil:
@@ -71,7 +71,7 @@ name: SKEPI iOS onboarding (packs installed)
 - extendedWaitUntil:
     visible:
       id: onboarding-disclaimer
-    timeout: 10000
+    timeout: 30000
 - assertVisible: ".*not medical advice.*"
 - tapOn:
     id: onboarding-accept

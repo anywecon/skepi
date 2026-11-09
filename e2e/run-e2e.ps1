@@ -2,12 +2,12 @@
 .SYNOPSIS
   Runs the Maestro flows on the connected device in airplane mode and checks that the sealed
   WebView made zero network requests (blocked-request log must be empty).
-  1. e2e/ask-en.yaml    English UI: search, article, Layer 1 + automatic AI summary with citation, problem report to the share sheet, no source, map.
+  1. e2e/ask-en.yaml    English UI: search, article, Layer 1 + automatic AI summary with citation, problem report (not sent), no source, map.
   2. e2e/ask-t1.yaml    English UI, T1-simulation: Layer 1, then "Summarise with AI".
   3. e2e/medical.yaml   English UI: emergency number + Layer 1 only, no AI summary (not even on tap).
   4. e2e/onboarding.yaml "Get prepared" offline with the installed packs; readiness indicator.
   5. e2e/cards.yaml     Emergency button, numbers, an IFRC card and the Ready.gov / CDC cards with citation and disclaimer; an emergency question shows number + card first.
-  6. e2e/tools.yaml     SOS torch and screen, compass, GNSS fix, SMS hand-off (location permission granted here).
+  6. e2e/tools.yaml     SOS torch and screen, compass, GNSS fix, SMS button (location permission granted here).
   6b. e2e/map-location.yaml (only with -MockLocation, debug build with map-gr) Live position on the map:
      puck, coordinates, "My location" centre/follow, panning leaves follow mode.
   7. e2e/blackout.yaml  Blackout mode with a simulated discharging battery at 25% (dumpsys battery), reset afterwards.
@@ -20,6 +20,12 @@
   -MockLocation runs tools.yaml and map-location.yaml on the debug build (-ToolsAppId, default org.skepi.app.dev) with its
   debug-only mock GNSS provider (a fixed fix from files/e2e/mock-location.json, pushed here and removed
   afterwards): deterministic, no shell test provider. Release builds contain no mock code.
+  No flow may open another app: a flow that taps a hand-off button (SMS, share sheet, dialler, system
+  settings) is refused before anything runs, and a run in which the app started such an intent, or that
+  leaves another app in front, fails. The hand-offs are checked by hand on the release candidate
+  (docs/release-process.md, step 6).
+  -FlowTimeoutMinutes (default 10): a flow still running then is stopped (Maestro's process tree), the
+  remaining flows are skipped, the run ends with exit code 124 and the device lock is released.
 #>
 [CmdletBinding()]
 param(
@@ -36,7 +42,9 @@ param(
   # (positions stop arriving); kept for release-only runs.
   [switch]$SimulateGnss,
   # The frozen Greek UI flow (English-only until v1: optional, never part of the required suite).
-  [switch]$IncludeGreek
+  [switch]$IncludeGreek,
+  [ValidateRange(1, 120)]
+  [int]$FlowTimeoutMinutes = 10
 )
 
 Set-StrictMode -Version Latest
@@ -97,13 +105,77 @@ function Get-UidBytes([string]$Uid) {
   return $total
 }
 
+# Buttons that hand off to another app (SMS app, share sheet, dialler, system settings). A tap on one
+# leaves that app's task behind (Samsung Messages' contact picker came back to the front whenever the
+# app was stopped later, and a stray tap there could send a message): flows check them, never tap them.
+$handOffIds = '^(location-sms|location-settings|report-share|card-call|call-[\w-]+)$'
+$handOffTexts = '^(?i)(call\b|send\b|share\b|\u039a\u03bb\u03ae\u03c3\u03b7)'
+function Assert-NoHandOffTaps([string]$Flow, [hashtable]$Seen = @{}) {
+  $path = Join-Path $root $Flow
+  if ($Seen.ContainsKey($path)) { return }
+  $Seen[$path] = $true
+  $lines = @(Get-Content -Encoding UTF8 $path)
+  # Subflows (runFlow: x.yaml, or file: x.yaml under runFlow) are checked too, relative to this flow.
+  foreach ($line in $lines) {
+    if ($line -match '^\s*-?\s*(runFlow|file):\s*"?([\w./-]+\.ya?ml)"?\s*$') {
+      Assert-NoHandOffTaps (Join-Path (Split-Path -Parent $Flow) $Matches[2]) $Seen
+    }
+  }
+  for ($i = 0; $i -lt $lines.Count; $i += 1) {
+    if ($lines[$i] -notmatch '^\s*-?\s*(tapOn|longPressOn|doubleTapOn):\s*(.*)$') { continue }
+    # (kind, value): `tapOn: "Text"` and `text:` match visible text, `id:` a testID.
+    $targets = @()
+    $inline = $Matches[2].Trim().Trim('"', "'")
+    if ($inline) { $targets += , @('text', $inline) }
+    for ($j = $i + 1; $j -lt $lines.Count -and $lines[$j] -match '^\s+[^-\s#]'; $j += 1) {
+      if ($lines[$j] -match '^\s+(id|text):\s*(.+)$') { $targets += , @($Matches[1], $Matches[2].Trim().Trim('"', "'")) }
+    }
+    foreach ($t in $targets) {
+      if (($t[0] -eq 'id' -and $t[1] -match $handOffIds) -or ($t[0] -eq 'text' -and $t[1] -match $handOffTexts)) {
+        throw "$Flow line $($i + 1): taps the hand-off '$($t[1])', which opens another app. Check it with assertVisible instead."
+      }
+    }
+  }
+}
+
+# Intents that leave the app (logged by the system as START u0 {act=...}); none may appear during E2E.
+$handOffIntent = 'START u0 \{act=(android\.intent\.action\.(VIEW dat=(sms|smsto|mms|tel|mailto|geo|https?):|CHOOSER|SEND|SENDTO|DIAL|CALL)|android\.settings\.)'
+# Lines naming another caller ("from uid N") are system or other apps, not the app under test.
+function Get-HandOffIntents {
+  return @(& adb @adbArgs logcat -d | Select-String -Pattern $handOffIntent | ForEach-Object { $_.Line } |
+    Where-Object { $_ -notmatch 'from uid (\d+)' -or $Matches[1] -in @($uid, $toolsUid) })
+}
+# Another app's activity in front after a flow (the launcher, the app under test and Maestro are fine).
+function Get-ForeignForeground {
+  $line = (& adb @adbArgs shell dumpsys activity activities) | Select-String -Pattern 'topResumedActivity=' | Select-Object -First 1
+  if (-not $line -or $line.Line -notmatch ' u0 ([\w.]+)/') { return $null }
+  $pkg = $Matches[1]
+  if ($pkg -in @($package, $toolsPackage)) { return $null }
+  if ($pkg -match '^(com\.sec\.android\.app\.launcher|com\.google\.android\.apps\.nexuslauncher|com\.android\.launcher3|dev\.mobile\.maestro.*|com\.(google\.)?android\.permissioncontroller)$') { return $null }
+  return $pkg
+}
+
 function Invoke-Flow([string]$Flow, [string]$Report, [string]$App = $package) {
   # APP_ID is ASCII, so -e is safe here (Greek values stay in the flows' env blocks).
   $maestroArgs = @('test', $Flow, '-e', "APP_ID=$App", '--format', 'junit', '--output', (Join-Path $out $Report), '--test-output-dir', $out)
   if ($Serial) { $maestroArgs = @('--device', $Serial) + $maestroArgs }
-  # Out-Host keeps Maestro's output out of the function's return value (the exit code only).
-  & $Maestro @maestroArgs | Out-Host
-  return $LASTEXITCODE
+  # A child process with a deadline: a hung Maestro (it once waited for hours without reaching the
+  # device) must not hold the device lock. Its output goes to this console.
+  $quoted = ($maestroArgs | ForEach-Object { if ($_ -match '[\s"]') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ } }) -join ' '
+  $proc = Start-Process -FilePath $Maestro -ArgumentList $quoted -NoNewWindow -PassThru
+  # Holding the handle keeps ExitCode readable after the process ends (otherwise it comes back empty).
+  $null = $proc.Handle
+  if (-not $proc.WaitForExit($FlowTimeoutMinutes * 60 * 1000)) {
+    # /T: maestro.bat runs Maestro in a child java process.
+    # taskkill writes to stderr when part of the tree has already exited: not an error here.
+    try { & taskkill.exe /PID $proc.Id /T /F *>&1 | Out-Host } catch { }
+    $proc.WaitForExit(30000) | Out-Null
+    Write-Warning "$Flow still running after $FlowTimeoutMinutes min: Maestro stopped."
+    # The killed flow's onFlowComplete never ran: leave the shared phone out of airplane mode.
+    try { & adb @adbArgs shell cmd connectivity airplane-mode disable *>&1 | Out-Null } catch { }
+    return 124
+  }
+  return $proc.ExitCode
 }
 
 & adb @adbArgs logcat -c
@@ -116,8 +188,8 @@ $uid = Get-AppUid $package
 $bytesBefore = Get-UidBytes $uid
 $toolsUid = Get-AppUid $toolsPackage
 $toolsBytesBefore = $(if ($toolsUid -ne $uid) { Get-UidBytes $toolsUid } else { 0 })
-$script:smsIntents = 0
-$script:shareIntents = 0
+$script:handOffs = @()
+$script:foreign = @()
 $flows = @(
   # tools.yaml first: with -SimulateGnss the test provider stopped receiving positions when tools.yaml ran
   # after other flows (cause not found; standalone and first-in-suite runs pass).
@@ -200,6 +272,7 @@ function Set-SimulatedBattery([bool]$On) {
     & adb @adbArgs shell dumpsys battery reset
   }
 }
+foreach ($f in $flows) { Assert-NoHandOffTaps $f.Flow }
 $results = @()
 Push-Location $root
 try {
@@ -211,13 +284,15 @@ try {
     $battery = $f.ContainsKey('Battery')
     if ($battery) { Set-SimulatedBattery $true }
     try {
-      $results += [pscustomobject]@{ Flow = $f.Flow; App = $app; Exit = (Invoke-Flow $f.Flow $f.Report $app) }
+      $exit = Invoke-Flow $f.Flow $f.Report $app
+      $results += [pscustomobject]@{ Flow = $f.Flow; App = $app; Exit = $exit }
       Wait-Adb
-      # SMS hand-off (tools.yaml): the app only started a VIEW sms: intent (data redacted in logcat).
-      # Counted right away: later flows push it out of the log buffer.
-      if ($f.Flow -eq 'e2e/tools.yaml') { $script:smsIntents = @(& adb @adbArgs logcat -d | Select-String -Pattern 'START u0 \{act=android.intent.action.VIEW dat=sms:').Count }
-      # Problem report (ask-en.yaml): "Send…" only started the system share sheet (a CHOOSER intent).
-      if ($f.Flow -eq 'e2e/ask-en.yaml') { $script:shareIntents = @(& adb @adbArgs logcat -d | Select-String -Pattern 'START u0 \{act=android.intent.action.CHOOSER').Count }
+      # Checked after every flow: later flows push the lines out of the log buffer.
+      $new = @(Get-HandOffIntents | Where-Object { $_ -notin $script:handOffs })
+      if ($new.Count -gt 0) { $new | ForEach-Object { Write-Warning "$($f.Flow): intent to another app: $_" }; $script:handOffs += $new }
+      $pkg = Get-ForeignForeground
+      if ($pkg) { Write-Warning "$($f.Flow): another app is in front afterwards: $pkg"; $script:foreign += "$($f.Flow): $pkg" }
+      if ($exit -eq 124) { break }
     } finally {
       if ($battery) { Set-SimulatedBattery $false }
       if ($location -and $SimulateGnss) { Stop-TestGps }
@@ -235,7 +310,6 @@ try {
 
 $egress = (Get-UidBytes $uid) - $bytesBefore
 if ($toolsUid -ne $uid) { $egress += (Get-UidBytes $toolsUid) - $toolsBytesBefore }
-$toolsRan = @($results | Where-Object { $_.Flow -eq 'e2e/tools.yaml' }).Count -gt 0
 $downloads = @(& adb @adbArgs logcat -d -s 'SkepiContentStore:*' | Select-String -SimpleMatch 'download requested:')
 $log = & adb @adbArgs logcat -d -s 'ExpoZim:*'
 $log | Set-Content -Encoding UTF8 (Join-Path $out 'expozim-logcat.txt')
@@ -246,16 +320,15 @@ foreach ($r in $results) { Write-Host "Maestro exit code ($($r.Flow), $($r.App))
 Write-Host "Blocked WebView requests during E2E: $($blocked.Count)"
 Write-Host "ContentStore download requests during E2E: $($downloads.Count)"
 Write-Host "Bytes of UID $uid$(if ($toolsUid -ne $uid) { " + $toolsUid" }) over real interfaces during E2E: $egress"
-if ($toolsRan) { Write-Host "SMS hand-off intents (VIEW sms:): $script:smsIntents" }
-$askRan = @($results | Where-Object { $_.Flow -eq 'e2e/ask-en.yaml' }).Count -gt 0
-if ($askRan) { Write-Host "Problem report share intents (CHOOSER): $script:shareIntents" }
+Write-Host "Intents to other apps during E2E: $($script:handOffs.Count)"
+Write-Host "Other apps left in front: $($script:foreign.Count)"
 $failed = @($results | Where-Object { $_.Exit -ne 0 })
-if ($askRan -and $failed.Count -eq 0 -and $script:shareIntents -lt 1) {
-  Write-Error 'ask-en.yaml: no CHOOSER intent was started (problem report share sheet).'
-  exit 6
+if (@($results | Where-Object { $_.Exit -eq 124 }).Count -gt 0) {
+  Write-Error "A flow did not finish within $FlowTimeoutMinutes min; Maestro was stopped and the remaining flows skipped."
+  exit 124
 }
-if ($toolsRan -and $failed.Count -eq 0 -and $script:smsIntents -lt 1) {
-  Write-Error 'tools.yaml: no VIEW sms: intent was started (SMS hand-off).'
+if ($script:handOffs.Count -gt 0 -or $script:foreign.Count -gt 0) {
+  Write-Error 'A flow opened another app (SMS, share sheet, dialler or settings); no E2E step may.'
   exit 5
 }
 if ($failed.Count -gt 0) { exit $failed[0].Exit }

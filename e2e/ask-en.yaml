@@ -1,6 +1,6 @@
 # English flow (Android, release build, airplane mode, English UI, English content):
 # search -> article -> Ask: Layer 1 first, then the automatic AI summary (T2) with its label and a
-# citation chip -> cited article -> problem report to the share sheet -> unrelated question (no source,
+# citation chip -> cited article -> problem report (built, not sent) -> unrelated question (no source,
 # no AI) -> offline map.
 # Run: e2e/run-e2e.ps1 (sets the app locale, collects logcat + blocked-request log).
 appId: ${APP_ID}
@@ -109,9 +109,10 @@ onFlowComplete:
 - takeScreenshot: e2e/out/05-cited-article
 - back
 
-# 4b. Report a problem: the user's text and the report go to the system share sheet (ACTION_SEND in a
-# chooser); SKEPI sends nothing and needs no permission. run-e2e.ps1 checks the CHOOSER intent in
-# logcat. No screenshot of the sheet: it lists the phone's apps and recent contacts.
+# 4b. Report a problem: the report holds the user's text; "Send…" would open the system share sheet
+# (ACTION_SEND in a chooser), which lists the phone's apps and contacts, so it is checked but never
+# tapped: no step may open another app (run-e2e.ps1 fails the run on any hand-off tap or intent). The
+# share sheet is checked by hand on the release candidate (docs/release-process.md, step 6).
 - scrollUntilVisible:
     element:
       id: ask-report
@@ -138,18 +139,10 @@ onFlowComplete:
       id: report-share
     direction: DOWN
     timeout: 10000
-- takeScreenshot: e2e/out/05b-report
-- tapOn:
+- assertVisible:
     id: report-share
-- waitForAnimationToEnd:
-    timeout: 5000
-- back
-- scrollUntilVisible:
-    element:
-      id: report-status
-    direction: DOWN
-    timeout: 10000
-- assertVisible: "Share menu opened. Nothing was sent by S.K.E.P.I."
+    enabled: true
+- takeScreenshot: e2e/out/05b-report
 - tapOn:
     id: report-close
 

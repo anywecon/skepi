@@ -1,6 +1,7 @@
 # Tools (release build, airplane mode): GNSS fix (location permission granted by run-e2e.ps1; the first
-# fix without A-GPS can take minutes) and the SMS hand-off, which only opens the SMS app with the text
-# filled in (nothing is sent); then the SOS torch, red screen SOS and compass. Indoors, run-e2e.ps1
+# fix without A-GPS can take minutes) and the "Send by SMS" button, which is checked but never tapped: no
+# step may open another app (run-e2e.ps1 fails the run on any hand-off tap or intent); then the SOS torch,
+# red screen SOS and compass. Indoors, run-e2e.ps1
 # -MockLocation runs this flow on the debug build with its debug-only mock provider (a fixed fix, no shell
 # test provider; deterministic). The location steps come first: on the S23, shell test-provider positions
 # (-SimulateGnss, release builds) stopped arriving once the torch had been switched on.
@@ -44,22 +45,11 @@ onFlowComplete:
       id: location-sms
     direction: DOWN
     timeout: 10000
-- tapOn:
+# Not tapped: it opens the SMS app on the phone's contacts (a stray tap there could send the position).
+# The hand-off is checked by hand on the release candidate (docs/release-process.md, step 6).
+- assertVisible:
     id: location-sms
-# The SMS app opens (Samsung Messages asks for the recipient first, with the text kept). No screenshot
-# here: that screen shows the phone's contacts. run-e2e.ps1 checks the VIEW sms: intent in logcat.
-- extendedWaitUntil:
-    notVisible:
-      id: tools-screen
-    timeout: 15000
-- launchApp:
-    stopApp: false
-- tapOn:
-    id: tab-tools
-- extendedWaitUntil:
-    visible:
-      id: tools-screen
-    timeout: 15000
+    enabled: true
 # SOS torch and red screen
 - scrollUntilVisible:
     element:

@@ -187,7 +187,7 @@ export class AndroidContentStore implements ContentStore {
         resume && mirror === resume.mirror ? resume.downloadId : await ExpoContentStore.startDownload(url, entry.file, entry.title.en, options.allowMetered);
       await this.trackActive(db, { packId: entry.id, downloadId, mirror, rejectedMirrors: rejected, allowMetered: options.allowMetered });
       // Set inside the polling loop; an object so control-flow analysis sees the assignment.
-      const outcome: { done: NativeDownload | null } = { done: null };
+      const outcome: { done: NativeDownload | null; oversize: boolean } = { done: null, oversize: false };
       try {
         for (;;) {
           if (isAborted(options.signal)) {
@@ -196,6 +196,12 @@ export class AndroidContentStore implements ContentStore {
             return;
           }
           const q = ExpoContentStore.queryDownload(downloadId);
+          // More bytes than the signed catalog says (announced or received): never a match, stop now
+          // instead of filling the disk.
+          if (q && (q.bytes > entry.sizeBytes || q.totalBytes > entry.sizeBytes)) {
+            outcome.oversize = true;
+            break;
+          }
           if (!q || q.status === 'failed' || q.status === 'successful') {
             outcome.done = q;
             break;
@@ -205,6 +211,13 @@ export class AndroidContentStore implements ContentStore {
         }
       } finally {
         await this.untrackActive(db, entry.id, downloadId);
+      }
+      if (outcome.oversize) {
+        ExpoContentStore.removeDownload(downloadId);
+        await ExpoContentStore.deleteFile(partial);
+        rejected += 1;
+        lastError = `mirror ${String(mirror + 1)}: larger than the signed catalog size`;
+        continue;
       }
       const done = outcome.done;
       if (done?.status !== 'successful') {

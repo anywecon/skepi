@@ -110,3 +110,35 @@ describe('import verifies the bytes that end up installed', () => {
     expect((await getPack(db, SMOKE_ID))?.verified).toBe(true);
   });
 });
+
+describe('downloads stop at the catalog size', () => {
+  async function run(state: { bytes: number; totalBytes: number }): Promise<unknown> {
+    const entry = CATALOG.packs.find((p) => p.id === SMOKE_ID);
+    if (!entry) throw new Error('no catalog entry');
+    // One mirror only, so the outcome of that mirror is the outcome of the download.
+    const one = { ...entry, urls: entry.urls.slice(0, 1) };
+    fakeFs.downloadState = () => ({ status: 'running', reason: 0, ...state });
+    const it = store.downloadPack(one, { signal: new AbortController().signal, allowMetered: false });
+    const phases: string[] = [];
+    try {
+      for await (const p of it) phases.push(p.phase);
+      return null;
+    } catch (e) {
+      return e;
+    }
+  }
+
+  it('a mirror that announces more bytes than the catalog size is cancelled at once', async () => {
+    const entry = CATALOG.packs.find((p) => p.id === SMOKE_ID);
+    const e = await run({ bytes: 1024, totalBytes: (entry?.sizeBytes ?? 0) + 1 });
+    expect(e).toMatchObject({ code: 'hash_mismatch' });
+    expect(fakeFs.downloads.map((d) => d.removed)).toEqual([true]);
+  });
+
+  it('a mirror that sends more bytes than the catalog size is cancelled at once', async () => {
+    const entry = CATALOG.packs.find((p) => p.id === SMOKE_ID);
+    const e = await run({ bytes: (entry?.sizeBytes ?? 0) + 1, totalBytes: -1 });
+    expect(e).toMatchObject({ code: 'hash_mismatch' });
+    expect(fakeFs.downloads.map((d) => d.removed)).toEqual([true]);
+  });
+});

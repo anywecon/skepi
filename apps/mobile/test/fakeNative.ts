@@ -24,6 +24,15 @@ export class FakeFs {
   readonly hashed: string[] = [];
   /** Runs right after a hash finished, before the caller continues (another process writing). */
   afterHash: ((path: string) => void) | null = null;
+  /** Downloads handed to the (fake) DownloadManager, by id - 1. */
+  readonly downloads: { url: string; fileName: string; removed: boolean }[] = [];
+  /** What queryDownload reports for a running download. */
+  downloadState: (id: number) => { status: string; reason: number; bytes: number; totalBytes: number } = () => ({
+    status: 'running',
+    reason: 0,
+    bytes: 0,
+    totalBytes: -1,
+  });
   private nextIno = 1;
   private clock = 1_000;
 
@@ -32,6 +41,7 @@ export class FakeFs {
     this.documents.clear();
     this.hashed.length = 0;
     this.afterHash = null;
+    this.downloads.length = 0;
   }
 
   private tick(): number {
@@ -110,6 +120,18 @@ export class FakeFs {
       return Promise.resolve({ displayName: doc.name, sizeBytes: doc.bytes.length, relativePath: rel, path: this.abs(rel) });
     },
     adoptDownload: (fileName: string): Promise<string> => Promise.resolve(this.abs(`tmp/${fileName}.partial`)),
+    getFreeBytes: (): number => 1e12,
+    requiredFreeBytes: (sizeBytes: number): number => sizeBytes,
+    startDownload: (url: string, fileName: string): Promise<number> => {
+      this.downloads.push({ url, fileName, removed: false });
+      return Promise.resolve(this.downloads.length);
+    },
+    queryDownload: (id: number) => (this.downloads[id - 1]?.removed ? null : this.downloadState(id)),
+    removeDownload: (id: number): boolean => {
+      const d = this.downloads[id - 1];
+      if (d) d.removed = true;
+      return d !== undefined;
+    },
     migrateLegacyContent: (): Promise<number> => Promise.resolve(0),
     addListener: () => ({ remove: (): void => undefined }),
   };

@@ -32,4 +32,4 @@ PERMISSIONS
 
 OPEN SOURCE
 
-SKEPI is free software under the GNU GPL v3.0 or later. Content: Wikipedia text CC BY-SA 4.0; first aid card text © IFRC 2025 (non-commercial use with acknowledgement); maps and places © OpenStreetMap contributors, ODbL 1.0; AI model Qwen2.5-1.5B-Instruct, Apache 2.0. Source code, issues and reports: https://github.com/Fiouri/skepi
+SKEPI is free software under the GNU GPL v3.0 or later. Content: Wikipedia text CC BY-SA 4.0; first aid card text © IFRC 2025 (non-commercial use with acknowledgement); maps and places © OpenStreetMap contributors, ODbL 1.0; AI model Qwen2.5-1.5B-Instruct, Apache 2.0. Source code, issues and reports: https://github.com/anywecon/skepi

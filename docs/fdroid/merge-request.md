@@ -33,9 +33,9 @@ country or per part of a large country (PMTiles, OpenStreetMap), with emergency 
 number for the country, an SOS torch, a compass, and pack sharing between phones over the local network. No
 accounts, analytics, ads or telemetry.
 
-- Source: https://github.com/Fiouri/skepi (GPL-3.0-or-later)
-- Release: https://github.com/Fiouri/skepi/releases/tag/v0.2.1-preview
-- Screenshots: https://github.com/Fiouri/skepi/tree/HEAD/fastlane/metadata/android/en-US/images/phoneScreenshots
+- Source: https://github.com/anywecon/skepi (GPL-3.0-or-later)
+- Release: https://github.com/anywecon/skepi/releases/tag/v0.2.1-preview
+- Screenshots: https://github.com/anywecon/skepi/tree/HEAD/fastlane/metadata/android/en-US/images/phoneScreenshots
 - Status: **Developer Preview** (`0.2.1-preview`), labelled "not for emergency use" in the app, the
   description and the release. The preview build (`SKEPI_PREVIEW=1 -PskepiPreview=true`) adds a permanent
   "not for emergency use" label. The emergency cards quote their sources word for word with citations
@@ -64,7 +64,7 @@ upstream-signed APK:
   apksigcopier 1.1.1 and verified byte-identical, as fdroidserver does. Signer certificate SHA-256
   `7d61c38241b178f84b12dd9a67af6b60b56159b1a0ff067fe672db45dd45447e`.
 - How the build was made reproducible (build-id, `-ffile-prefix-map`, no ThinLTO for Reanimated, fixed
-  dev-server IP): https://github.com/Fiouri/skepi/blob/HEAD/docs/store-readiness.md (§4, §6).
+  dev-server IP): https://github.com/anywecon/skepi/blob/HEAD/docs/store-readiness.md (§4, §6).
 
 **Build notes for reviewers.**
 
@@ -97,7 +97,7 @@ non-free network service.
 catalog's hosts), fine/coarse location (position on the map and in Tools; foreground only, never stored or
 sent), `CAMERA` (scans the other phone's pairing QR code; no photos or video), `NEARBY_WIFI_DEVICES` with
 `neverForLocation` and the Wi-Fi/network state permissions (local-only hotspot for phone-to-phone sharing).
-Justifications: https://github.com/Fiouri/skepi/blob/HEAD/docs/store-readiness.md (§8).
+Justifications: https://github.com/anywecon/skepi/blob/HEAD/docs/store-readiness.md (§8).
 
 **Card sources.** The first-aid cards quote, word for word, the IFRC International First Aid, Resuscitation
 and Education Guidelines 2025 (© IFRC, Geneva, 2025), whose terms are "Copies of all or part of this study

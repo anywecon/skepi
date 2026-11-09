@@ -457,7 +457,7 @@ export const en: Messages = {
     licenceTitle: 'Licence',
     licence:
       'S.K.E.P.I. is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License, version 3 or (at your option) any later version (GPL-3.0-or-later). It comes with no warranty, to the extent permitted by law.',
-    sourceCode: 'Source code: github.com/Fiouri/skepi',
+    sourceCode: 'Source code: github.com/anywecon/skepi',
     contentTitle: 'Content, data and model licences',
     wikipedia:
       'Articles: Wikipedia, by Wikipedia contributors, CC BY-SA 4.0, in Kiwix ZIM packs (WikiMed: selection by WikiProject Medicine). Shown as excerpts, unchanged.',
@@ -488,9 +488,9 @@ export const en: Messages = {
   report: {
     button: 'Report a problem with this answer',
     title: 'Problem report',
-    hint: 'Nothing is sent. Copy this text or save it, then send it yourself, for example as an issue at github.com/Fiouri/skepi/issues. It contains only the question, the answer, the cited sources and the app version.',
+    hint: 'Nothing is sent. Copy this text or save it, then send it yourself, for example as an issue at github.com/anywecon/skepi/issues. It contains only the question, the answer, the cited sources and the app version.',
     hintShare:
-      'S.K.E.P.I. sends nothing itself. "Send…" opens the share menu of your phone: you choose the app (e-mail, messages, a browser for github.com/Fiouri/skepi/issues) and whether to send. You can also copy the text or save it for later. It contains only the question, the answer, the cited sources, the app version and what you write.',
+      'S.K.E.P.I. sends nothing itself. "Send…" opens the share menu of your phone: you choose the app (e-mail, messages, a browser for github.com/anywecon/skepi/issues) and whether to send. You can also copy the text or save it for later. It contains only the question, the answer, the cited sources, the app version and what you write.',
     copy: 'Copy text',
     copied: 'Copied',
     save: 'Save for later',

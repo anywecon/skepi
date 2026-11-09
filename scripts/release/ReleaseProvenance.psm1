@@ -67,7 +67,7 @@ function Assert-ReleaseProvenance {
   param(
     [Parameter(Mandatory = $true)][string]$Unsigned,
     [Parameter(Mandatory = $true)][string]$Tag,
-    [string]$Repo = 'Fiouri/skepi',
+    [string]$Repo = 'anywecon/skepi',
     [string]$RunId = ''
   )
   $apkSha = (Get-FileHash -Algorithm SHA256 $Unsigned).Hash.ToLowerInvariant()

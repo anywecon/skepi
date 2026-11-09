@@ -5,7 +5,7 @@ S.K.E.P.I. is a Developer Preview (`v0.2.1-preview`). Security reports are welco
 ## Reporting a vulnerability
 
 **Do not open a public issue.** Use GitHub's private vulnerability reporting:
-**Security → Report a vulnerability** on <https://github.com/Fiouri/skepi> (a private security
+**Security → Report a vulnerability** on <https://github.com/anywecon/skepi> (a private security
 advisory, visible only to you and the maintainers). Please include:
 
 - the affected app and version (About screen), platform and device;

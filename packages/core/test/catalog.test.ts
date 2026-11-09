@@ -152,7 +152,7 @@ describe('catalog schema 2 (global maps: pack regions)', () => {
     sha256: H('e'),
     chunkSize: CATALOG_CHUNK_SIZE,
     chunkSha256: [H('e')],
-    urls: ['https://github.com/Fiouri/skepi/releases/download/packs-2026-10b/map-cy-20261022.pmtiles'],
+    urls: ['https://github.com/anywecon/skepi/releases/download/packs-2026-10b/map-cy-20261022.pmtiles'],
     license: 'ODbL-1.0',
     attribution: '© OpenStreetMap contributors',
     minTier: 'T0',

@@ -78,5 +78,5 @@ is public in the project's Git repository.
 
 ## Contact
 
-Open an issue at <https://github.com/Fiouri/skepi/issues>. For security matters, use GitHub's private
+Open an issue at <https://github.com/anywecon/skepi/issues>. For security matters, use GitHub's private
 vulnerability reporting as described in `SECURITY.md`.

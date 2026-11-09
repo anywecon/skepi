@@ -82,7 +82,7 @@ const regional = (id: string, kind: 'pmtiles' | 'places', sizeBytes: number, reg
   sha256: SHA(sha),
   chunkSize: 67108864,
   chunkSha256: [SHA(sha)],
-  urls: [`https://github.com/Fiouri/skepi/releases/download/packs-20261022/${id}-20261022`],
+  urls: [`https://github.com/anywecon/skepi/releases/download/packs-20261022/${id}-20261022`],
   license: 'ODbL-1.0',
   attribution: '© OpenStreetMap contributors',
   minTier: 'T0',

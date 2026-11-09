@@ -50,7 +50,7 @@ run 38947609658 green (ios-build rerun after a WKWebView test timeout); `android
 NDK download). The published APK comes from the same jobs at the tag.
 
 **v0.1.1-preview released (2026-10-17):** GitHub pre-release
-<https://github.com/Fiouri/skepi/releases/tag/v0.1.1-preview>, tag on `a974d925a9dc`. The owner signed the
+<https://github.com/anywecon/skepi/releases/tag/v0.1.1-preview>, tag on `a974d925a9dc`. The owner signed the
 `android-repro` artifact of run 38947609768 (unsigned `13fdec22…fcdc`) with `sign-release-apk.ps1`; signed
 APK `b3e35ed43fd6b29881e35a1d15a92fcd55468d64c091dbb0a5e7d9bf45ca160e` (v2, certificate `7d61c382…447e`,
 the unsigned APK's 1349 entries plus signature files only), MSI `fe562fd9…6fb1b`, NSIS `78f5f56c…93a6`
@@ -96,7 +96,7 @@ The CI job `fdroid-build` now also runs `fdroid rewritemeta` (no diff allowed), 
 The owner pushes the recipe to the MR branch and replies with the text in `docs/fdroid/merge-request.md`.
 
 **v0.1.2-preview published (owner, 2026-10-22):** GitHub pre-release
-<https://github.com/Fiouri/skepi/releases/tag/v0.1.2-preview> (20:50 UTC), tag on
+<https://github.com/anywecon/skepi/releases/tag/v0.1.2-preview> (20:50 UTC), tag on
 `4af3b0c43daf6078abe46163d80d6daf18700e89`; signed APK `skepi-0.1.2-preview-arm64.apk`
 `80fd1071905978cfa67a7bd96e97b77177ab71d6c66a63163820a355921ac628` (signed with `--alignment-preserved`
 from the CI artifact `9857b660…12c1`, run 39778296502); `check-fdroid-signature-copy.ps1` on the asset
@@ -115,7 +115,7 @@ recipe's `build:` line only after an `android-repro` dispatch with the changed r
 still at the current unsigned SHA-256, `a99ed9da81c1440fa9962acb06a8a973e5d88ce580a0259c9345444b4f36e74a`.
 
 **v0.2.0-preview published (owner, 2026-10-25):** GitHub pre-release
-<https://github.com/Fiouri/skepi/releases/tag/v0.2.0-preview> (12:51 UTC), tag on
+<https://github.com/anywecon/skepi/releases/tag/v0.2.0-preview> (12:51 UTC), tag on
 `4faad7c0e9cdd3fcf0994b95a56abd3e8c471f82`; signed APK `skepi-0.2.0-preview-arm64.apk`
 `b6bebe1e96d927932fba8f12e4ce8507ec1b0ec99c0f8e523a94ccd5c671102b` (from the CI artifact
 `a65f6124…f70d`, `android-repro` run 40140411948, where `fdroid-build` gave the same bytes), MSI
@@ -131,7 +131,7 @@ The pack release `packs-20261024` (547 assets, every country) was published firs
 3008933505 on that commit passed on 2026-10-30.
 
 **v0.2.1-preview published (owner, 2026-11-05):** GitHub pre-release
-<https://github.com/Fiouri/skepi/releases/tag/v0.2.1-preview> (16:16 UTC), versionCode 6, tag on
+<https://github.com/anywecon/skepi/releases/tag/v0.2.1-preview> (16:16 UTC), versionCode 6, tag on
 `ebd321e03bdb65ee118e4ba592218e90e50514b2`; signed APK `skepi-0.2.1-preview-arm64.apk`
 `a1c29b0505d399cbd8a7731aefcd250487bf51ca955c0a05540df8e0bd4c7761` (from the CI artifact `a99ed9da…e74a`,
 `android-repro` run 41948574811, where `fdroid-build` gave the same bytes), MSI
@@ -161,7 +161,7 @@ decision or account action).
 | B3 | Release APKs are **not reproducible across checkout paths**: 18 of 1349 entries differ, all native libraries built in the build (build-id, absolute `__FILE__` paths, one link-order difference). Java/Kotlin, resources and the JS bundle are identical (§4). | F-Droid (reproducible, our signature) | **done** | `plugins/reproducible.cmake` for every CMake build (`--build-id=none`, `-ffile-prefix-map`; Reanimated without ThinLTO); two clean builds in different paths are byte-identical, locally and in CI (`android-repro`, §4). |
 | B4 | The Health apps declaration must be accurate: SKEPI ships medical reference content (WikiMed packs) and emergency cards/numbers, i.e. the **Medical** group ("Medical Reference and Education", "Emergency and First Aid"). Play Console requirements list "Health apps, such as Medical apps" among the services that must register as an **Organization** account (D-U-N-S number). | Play | deferred (v1) | Decide the account type before creating it. A personal account would have to declare no health features, which would be inaccurate. Verify the exact trigger in Play Console when registering. |
 | B5 | New **personal** accounts (created after 2023-11-13) must run a closed test with ≥ 12 testers opted in for 14 consecutive days before production access. | Play | deferred (v1) | Only if a personal account is chosen (see B4). Recruit 12 testers (e.g. from the GitHub preview) before the first upload. |
-| B6 | **AI-Generated Content** policy: apps that generate content from user prompts must let users report offensive content "to developers without needing to exit the app". "Report a problem with this answer" only copied or saved text. | Play | **done** | The panel takes the user's text; "Send…" hands the report (question, what was shown, sources, app version, the user's text) to the system share sheet (`Share.share` → `ACTION_SEND` chooser, subject "Problem report (SKEPI <version> (Android))"). No permission, no network; the hint names github.com/Fiouri/skepi/issues. Unit tests (`packages/core/test/report.test.ts`), Maestro step in `ask-en.yaml` + CHOOSER intent check in `run-e2e.ps1`. |
+| B6 | **AI-Generated Content** policy: apps that generate content from user prompts must let users report offensive content "to developers without needing to exit the app". "Report a problem with this answer" only copied or saved text. | Play | **done** | The panel takes the user's text; "Send…" hands the report (question, what was shown, sources, app version, the user's text) to the system share sheet (`Share.share` → `ACTION_SEND` chooser, subject "Problem report (SKEPI <version> (Android))"). No permission, no network; the hint names github.com/anywecon/skepi/issues. Unit tests (`packages/core/test/report.test.ts`), Maestro step in `ask-en.yaml` + CHOOSER intent check in `run-e2e.ps1`. |
 | B7 | Play delivers split APKs from an AAB. The app already refuses to share itself from a split install (`ERR_P2P_APK`), so "share the app" does not work in the Play build; packs still share. | Play | ready (documented) | Mention in the Play listing or the share screen later; no change needed for submission. |
 | B8 | **Play App Signing** is mandatory for new apps. If Google generates the app signing key, Play installs carry a different certificate than GitHub/F-Droid builds: users cannot move between channels without uninstalling, and the fingerprint in About (`ANDROID_RELEASE_SIGNING_SHA256`) and the Station check would not match the Play install. | Play | deferred (v1) | Proposal unchanged: upload the existing SKEPI release key to Play App Signing (PEPK export) so every channel shares one certificate, with a separate upload key. Google then holds a copy of the key: owner decision at v1. |
 | B9 | **Android developer verification**: from 2026-09-30 certified devices in Brazil, Indonesia, Singapore and Thailand install only apps from verified developers; global in 2027. This covers the GitHub APK and F-Droid installs too. | All | owner (roadmap, before 2027) | Register `org.skepi.app` and its signing certificate (Play Console registers Play apps and can register apps distributed outside Play). F-Droid publicly opposes the programme; a reproducible build (F-Droid publishing our signed APK) keeps one registered certificate. |
@@ -200,7 +200,7 @@ Kept for v1; only the AAB and B6 changed in part 2.
 | AAB | ready | `bundleRelease -PskepiUnsigned=true` builds an arm64-only AAB (90.7 MB). Found and fixed on the way: ABI splits do not apply to bundles, so the AAB carried armeabi-v7a/x86/x86_64 copies of 20 prebuilt libraries (React Native, Hermes, libzim, MapLibre, …) without the app's own native code, and Play would have served those devices a crashing split; bundle tasks now turn the split off and filter to arm64-v8a (APK builds unchanged). bundletool 1.18.3: `validate`, `build-apks` (debug key, for the test only), `install-apks` on the `skepi-host` emulator (base + `arm64_v8a` + `xxhdpi` splits). Maestro on that install, airplane mode: `store-screenshots.yaml` (home, search, article, Ask with sources, map, tools), `cards.yaml`, `places.yaml` pass, 0 blocked WebView requests, 0 bytes over real interfaces; `onboarding.yaml` stops at its S23-specific tier assertion (`onboarding-tier-T2`; the emulator has 2 GB RAM). Not installed on the S23 (it would replace the release install and its data) |
 | Developer account type, closed test | owner | B4, B5 |
 | Play App Signing key | owner | B8 |
-| Privacy policy URL | owner | `docs/privacy-policy.md`; public URL: `https://github.com/Fiouri/skepi/blob/main/docs/privacy-policy.md` (repo is public) or GitHub Pages (not enabled; owner) |
+| Privacy policy URL | owner | `docs/privacy-policy.md`; public URL: `https://github.com/anywecon/skepi/blob/main/docs/privacy-policy.md` (repo is public) or GitHub Pages (not enabled; owner) |
 | Data safety form | ready | Answers in §7 |
 | Health apps declaration | owner | B4: declare Medical → Medical Reference and Education, Emergency and First Aid; description carries the required disclaimer |
 | Health Content and Services policy | ready | Listing says "not a medical device and does not diagnose, treat, cure, or prevent any medical condition" and to consult a healthcare professional; no medical claims; "not for emergency use" |
@@ -381,15 +381,15 @@ Categories:
 License: GPL-3.0-or-later
 AuthorName: Fiouri
 AuthorEmail: anywecon@gmail.com
-SourceCode: https://github.com/Fiouri/skepi
-IssueTracker: https://github.com/Fiouri/skepi/issues
-Changelog: https://github.com/Fiouri/skepi/blob/HEAD/CHANGELOG.md
+SourceCode: https://github.com/anywecon/skepi
+IssueTracker: https://github.com/anywecon/skepi/issues
+Changelog: https://github.com/anywecon/skepi/blob/HEAD/CHANGELOG.md
 
 AutoName: S.K.E.P.I.
 
 RepoType: git
-Repo: https://github.com/Fiouri/skepi.git
-Binaries: https://github.com/Fiouri/skepi/releases/download/v%v/skepi-%v-arm64.apk
+Repo: https://github.com/anywecon/skepi.git
+Binaries: https://github.com/anywecon/skepi/releases/download/v%v/skepi-%v-arm64.apk
 
 Builds:
   - versionName: 0.2.1-preview

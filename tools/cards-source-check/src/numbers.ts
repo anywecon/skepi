@@ -81,7 +81,7 @@ export async function downloadNumberSource(url: string, format: NumberCheck['for
   const response = await fetch(url, {
     redirect: 'follow',
     headers: {
-      'User-Agent': 'SKEPI cards-source-check (+https://github.com/Fiouri/skepi)',
+      'User-Agent': 'SKEPI cards-source-check (+https://github.com/anywecon/skepi)',
       Accept: format === 'pdf' ? 'application/pdf' : 'text/html,application/xhtml+xml',
       'Accept-Language': 'en-US,en;q=0.9',
       'Accept-Encoding': 'gzip, deflate, br',

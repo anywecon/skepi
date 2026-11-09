@@ -31,7 +31,7 @@ Dear IFRC,
 
 I maintain S.K.E.P.I. (Survival Knowledge & Emergency Pocket Intelligence), a free and open-source app
 for Android and Windows that works fully offline: an encyclopedia, offline maps and a set of emergency
-first aid cards. Source code: https://github.com/Fiouri/skepi (GPL-3.0-or-later).
+first aid cards. Source code: https://github.com/anywecon/skepi (GPL-3.0-or-later).
 
 Following the terms printed in the guidelines ("Copies of all or part of this study may be made for
 non-commercial use, providing the source is acknowledged"), I would like to let you know how we use the

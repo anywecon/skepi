@@ -44,9 +44,9 @@ Turkey 1.30 GB).
 
 ## Pilot packs (CI, `.github/workflows/packs.yml`)
 
-Run [40005452133](https://github.com/Fiouri/skepi/actions/runs/40005452133) (commit `25314b8`), 39 jobs, all
+Run [40005452133](https://github.com/anywecon/skepi/actions/runs/40005452133) (commit `25314b8`), 39 jobs, all
 green; 30 min wall time with GitHub's 20 concurrent jobs, 143 runner-minutes in total (setup included),
-longest job `places-us` (27 min). Run [40000021978](https://github.com/Fiouri/skepi/actions/runs/40000021978)
+longest job `places-us` (27 min). Run [40000021978](https://github.com/anywecon/skepi/actions/runs/40000021978)
 (commit `a4960c0`) built the same packs before the extract retry existed: 7 extracts there failed on
 dropped range reads from the build server (now retried, three attempts).
 
@@ -148,7 +148,7 @@ From the dry runs of all 239 regions (build 20261022) and the pilot's measured r
 | Android release build | `assembleRelease -PskepiUnsigned=true -PskepiPreview=true`: cards gate 111/111 sourced, 0/199 unsourced; permission allowlist PASS (no new permission); arm64 APK 50.7 MB |
 | Desktop release build | `tauri build`: MSI 38.5 MiB, NSIS 22.4 MiB; Playwright 16/16 (new: Maps & places search, download, use for numbers, delete, Greece update) |
 | Maestro on the S23 | `e2e/run-countries-e2e.ps1` (device lock, debug build, schema 2 test catalog sequence 5 signed with the test key): Cyprus and Greece downloaded from the local mirror, then airplane mode: Nicosia and Patras in the home search, the map with both packs and emergency points in each country (8 in central Nicosia), Cyprus deleted (its places gone, Greece left): **PASS**, 6 download requests all to the mirror, 0 bytes over real interfaces |
-| CI | run [40000021067](https://github.com/Fiouri/skepi/actions/runs/40000021067) (workflow_dispatch on `feat/global-maps`): verify, rag-eval smoke, Android release guards, desktop Windows and macOS, **ios-build and ios-e2e** green |
+| CI | run [40000021067](https://github.com/anywecon/skepi/actions/runs/40000021067) (workflow_dispatch on `feat/global-maps`): verify, rag-eval smoke, Android release guards, desktop Windows and macOS, **ios-build and ios-e2e** green |
 
 ## Review fixes (2026-10-24)
 
@@ -172,7 +172,7 @@ From the dry runs of all 239 regions (build 20261022) and the pilot's measured r
 | Unit, typecheck, lint | `pnpm verify` 49/49; Rust fmt/clippy/test |
 | Release builds | Android `assembleRelease` (cards 111/111, permission allowlist PASS); `tauri build` MSI + NSIS; Playwright 17/17 (one German part found by "Bayern", all parts, delete part) |
 | Maestro on the S23 | `run-countries-e2e.ps1` (device lock): Cyprus, Greece and Japan's Kanto part only (found by "Tokyo") from the local mirror; offline Yokohama in search, map and POIs; delete Cyprus, then the Kanto part (Japan's places go with it): **PASS**, 8 requests all to the mirror, 0 bytes over real interfaces. First run failed: Japan with one listed part showed as a whole country; fixed (`isSplit`). |
-| CI | run [40078020534](https://github.com/Fiouri/skepi/actions/runs/40078020534) (with the `isSplit` fix) green: verify, rag-eval smoke, Android release guards, desktop Windows and macOS, ios-build, ios-e2e |
+| CI | run [40078020534](https://github.com/anywecon/skepi/actions/runs/40078020534) (with the `isSplit` fix) green: verify, rag-eval smoke, Android release guards, desktop Windows and macOS, ios-build, ios-e2e |
 
 ## Open
 

@@ -102,8 +102,8 @@ Main, after the merge of PR #2 (rebased; all jobs green in both runs):
 
 | Run | Kind | ios-simulator | desktop-macos | Existing jobs |
 | --- | --- | --- | --- | --- |
-| [38167191548](https://github.com/Fiouri/skepi/actions/runs/38167191548) (push) | cold: first main run, no main caches (ccache, CocoaPods, Rust, packs, CoreKiwix) | 47 m 39 s | 29 m 20 s | verify 1 m 23 s · rag-eval-smoke 1 m 31 s · android-release-guards 14 m 12 s · desktop-windows 32 m 33 s (new Rust cache key: Cargo.lock gained the macOS-only crates) |
-| [38170634902](https://github.com/Fiouri/skepi/actions/runs/38170634902) (workflow_dispatch) | warm | 34 m 51 s | 7 m 29 s | verify 1 m 12 s · rag-eval-smoke 1 m 19 s · android-release-guards 13 m 22 s · desktop-windows 4 m 46 s |
+| [38167191548](https://github.com/anywecon/skepi/actions/runs/38167191548) (push) | cold: first main run, no main caches (ccache, CocoaPods, Rust, packs, CoreKiwix) | 47 m 39 s | 29 m 20 s | verify 1 m 23 s · rag-eval-smoke 1 m 31 s · android-release-guards 14 m 12 s · desktop-windows 32 m 33 s (new Rust cache key: Cargo.lock gained the macOS-only crates) |
+| [38170634902](https://github.com/anywecon/skepi/actions/runs/38170634902) (workflow_dispatch) | warm | 34 m 51 s | 7 m 29 s | verify 1 m 12 s · rag-eval-smoke 1 m 19 s · android-release-guards 13 m 22 s · desktop-windows 4 m 46 s |
 
 | Step | Cold | Warm |
 | --- | --- | --- |
@@ -151,12 +151,12 @@ Old single job (`ios-simulator`): cold 47 min 39 s, warm 34 min 51 s (runs 38167
 
 | Run | Kind | `ios-build` | `ios-e2e` | Result |
 | --- | --- | --- | --- | --- |
-| [38243154663](https://github.com/Fiouri/skepi/actions/runs/38243154663) | main, dispatch `cold=true` | 25 min 26 s | 28 min 37 s | All jobs green; Maestro 7/7; parity PASS |
-| [38229617151](https://github.com/Fiouri/skepi/actions/runs/38229617151) | main, dispatch, warm | 14 min 36 s (incl. ad-hoc copy 1 min 27 s) | 18 min 59 s | Flow 02 failed (typing, above); parity PASS |
-| [38237834411](https://github.com/Fiouri/skepi/actions/runs/38237834411) | branch, dispatch, warm (typing retry) | 14 min 22 s | 34 min 05 s (slow runner: every flow ~2×, driver start 4 min) | All jobs green; Maestro 7/7, no retry used; parity PASS |
-| [38224310841](https://github.com/Fiouri/skepi/actions/runs/38224310841) | PR #3, label, warm | 14 min 38 s | 17 min 49 s | All jobs green; Maestro 7/7; parity PASS |
-| [38227883505](https://github.com/Fiouri/skepi/actions/runs/38227883505) | main push, warm | 14 min 50 s (no ad-hoc copy) | skipped (by design) | All jobs green |
-| [38243150124](https://github.com/Fiouri/skepi/actions/runs/38243150124) | main push, warm | 15 min 43 s (Swift test step 7 min 04 s) | skipped (by design) | All jobs green |
+| [38243154663](https://github.com/anywecon/skepi/actions/runs/38243154663) | main, dispatch `cold=true` | 25 min 26 s | 28 min 37 s | All jobs green; Maestro 7/7; parity PASS |
+| [38229617151](https://github.com/anywecon/skepi/actions/runs/38229617151) | main, dispatch, warm | 14 min 36 s (incl. ad-hoc copy 1 min 27 s) | 18 min 59 s | Flow 02 failed (typing, above); parity PASS |
+| [38237834411](https://github.com/anywecon/skepi/actions/runs/38237834411) | branch, dispatch, warm (typing retry) | 14 min 22 s | 34 min 05 s (slow runner: every flow ~2×, driver start 4 min) | All jobs green; Maestro 7/7, no retry used; parity PASS |
+| [38224310841](https://github.com/anywecon/skepi/actions/runs/38224310841) | PR #3, label, warm | 14 min 38 s | 17 min 49 s | All jobs green; Maestro 7/7; parity PASS |
+| [38227883505](https://github.com/anywecon/skepi/actions/runs/38227883505) | main push, warm | 14 min 50 s (no ad-hoc copy) | skipped (by design) | All jobs green |
+| [38243150124](https://github.com/anywecon/skepi/actions/runs/38243150124) | main push, warm | 15 min 43 s (Swift test step 7 min 04 s) | skipped (by design) | All jobs green |
 
 | `ios-build` step | Cold | Warm |
 | --- | --- | --- |

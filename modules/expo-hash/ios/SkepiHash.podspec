@@ -11,10 +11,10 @@ Pod::Spec.new do |s|
   s.description    = s.summary
   s.license        = package['license']
   s.author         = 'SKEPI project'
-  s.homepage       = 'https://github.com/Fiouri/skepi'
+  s.homepage       = 'https://github.com/anywecon/skepi'
   s.platforms      = { :ios => '16.4' }
   s.swift_version  = '5.9'
-  s.source         = { git: 'https://github.com/Fiouri/skepi.git' }
+  s.source         = { git: 'https://github.com/anywecon/skepi.git' }
   s.static_framework = true
 
   s.source_files = 'Core/**/*.swift'

@@ -4,15 +4,15 @@ Categories:
 License: GPL-3.0-or-later
 AuthorName: Fiouri
 AuthorEmail: anywecon@gmail.com
-SourceCode: https://github.com/Fiouri/skepi
-IssueTracker: https://github.com/Fiouri/skepi/issues
-Changelog: https://github.com/Fiouri/skepi/blob/HEAD/CHANGELOG.md
+SourceCode: https://github.com/anywecon/skepi
+IssueTracker: https://github.com/anywecon/skepi/issues
+Changelog: https://github.com/anywecon/skepi/blob/HEAD/CHANGELOG.md
 
 AutoName: S.K.E.P.I.
 
 RepoType: git
-Repo: https://github.com/Fiouri/skepi.git
-Binaries: https://github.com/Fiouri/skepi/releases/download/v%v/skepi-%v-arm64.apk
+Repo: https://github.com/anywecon/skepi.git
+Binaries: https://github.com/anywecon/skepi/releases/download/v%v/skepi-%v-arm64.apk
 
 Builds:
   - versionName: 0.2.1-preview

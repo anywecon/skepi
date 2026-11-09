@@ -9,7 +9,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'ReleaseProvenance.psm1') -Force
 
-$repo = 'Fiouri/skepi'
+$repo = 'anywecon/skepi'
 $tag = 'v0.2.1-preview'
 $commit = 'ebd321e03bdb65ee118e4ba592218e90e50514b2'
 $apk = 'a99ed9da81c1440fa9962acb06a8a973e5d88ce580a0259c9345444b4f36e74a'
@@ -48,7 +48,7 @@ $q = $p.Clone(); $q.ArtifactName = 'skepi-0.2.0-preview-vc5-ebd321e03bdb-unsigne
 Check 'an artifact of another version is refused' (Test-ReleaseProvenance @q -Run (New-Run)) $false 'is not the unsigned APK'
 Check 'a pull-request run is refused' (Test-ReleaseProvenance @p -Run (New-Run @{ event = 'pull_request' })) $false 'triggered by'
 Check 'a run on a fork''s code is refused' (Test-ReleaseProvenance @p -Run (New-Run @{ head_repository = [pscustomobject]@{ full_name = 'someone/skepi' } })) $false 'head repository'
-Check 'a run of another repository is refused' (Test-ReleaseProvenance @p -Run (New-Run @{ repository = [pscustomobject]@{ full_name = 'someone/skepi' }; head_repository = [pscustomobject]@{ full_name = 'someone/skepi' } })) $false 'not Fiouri/skepi'
+Check 'a run of another repository is refused' (Test-ReleaseProvenance @p -Run (New-Run @{ repository = [pscustomobject]@{ full_name = 'someone/skepi' }; head_repository = [pscustomobject]@{ full_name = 'someone/skepi' } })) $false 'not anywecon/skepi'
 Check 'a failed run is refused' (Test-ReleaseProvenance @p -Run (New-Run @{ conclusion = 'failure' })) $false 'did not succeed'
 Check 'another workflow is refused' (Test-ReleaseProvenance @p -Run (New-Run @{ path = '.github/workflows/ci.yml' })) $false 'is not .github/workflows/android-repro.yml'
 Check 'a run on another branch is refused' (Test-ReleaseProvenance @p -Run (New-Run @{ head_branch = 'feature' })) $false 'not main'

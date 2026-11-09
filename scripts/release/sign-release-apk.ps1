@@ -27,7 +27,7 @@
   Prints the signed APK's SHA-256 for the release notes and SHA256SUMS.txt of the GitHub release.
 
 .EXAMPLE
-  gh run download <run-id> --repo Fiouri/skepi -n <artifact> -D $env:TEMP\skepi\release
+  gh run download <run-id> --repo anywecon/skepi -n <artifact> -D $env:TEMP\skepi\release
   ./scripts/release/sign-release-apk.ps1 -Tag v0.1.0-preview -Unsigned $env:TEMP\skepi\release\skepi-0.1.0-preview-arm64-unsigned.apk
 #>
 [CmdletBinding()]
@@ -35,7 +35,7 @@ param(
   [Parameter(Mandatory = $true)][string]$Unsigned,
   # The release tag (already pushed): the APK must be the CI artifact of the commit it names.
   [Parameter(Mandatory = $true)][ValidatePattern('^v\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$')][string]$Tag,
-  [string]$Repo = 'Fiouri/skepi',
+  [string]$Repo = 'anywecon/skepi',
   # The android-repro run the APK was downloaded from (default: the newest qualifying run).
   [string]$RunId = '',
   # Default: skepi-<version>-arm64.apk next to the unsigned APK (the GitHub release asset name).

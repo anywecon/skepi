@@ -39,7 +39,8 @@ class ApkServer(
   // Two workers and a short bounded queue; a peer may hold a few sockets without a request head, each
   // for a few seconds, and a download that stops reading is closed.
   private val pool = ThreadPoolExecutor(2, 2, 0L, TimeUnit.MILLISECONDS, ArrayBlockingQueue(8)) { r -> Thread(r, "skepi-apk-conn").apply { isDaemon = true } }
-  private val gate = PreAuthGate(PREAUTH_PER_PEER, PREAUTH_DEADLINE_MS)
+  // One unfinished request per address: below the 2 workers, so one address never holds both.
+  private val gate = PreAuthGate(1, PREAUTH_DEADLINE_MS)
 
   val port: Int
     get() = server?.localPort ?: -1
@@ -106,6 +107,7 @@ class ApkServer(
   private fun serve(socket: Socket, ticket: PreAuthGate.Ticket) {
     socket.use { s ->
       try {
+        ticket.startDeadline()
         s.soTimeout = PREAUTH_DEADLINE_MS.toInt()
         val req = Http.readRequest(s.getInputStream())
         ticket.release()

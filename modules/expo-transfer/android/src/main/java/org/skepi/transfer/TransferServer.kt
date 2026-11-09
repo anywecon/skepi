@@ -23,8 +23,11 @@ import javax.net.ssl.SSLSocket
 
 private const val TAG = "SkepiTransfer"
 
-/** Unauthenticated sockets per peer address, and their deadline for the TLS handshake and the request head. */
-internal const val PREAUTH_PER_PEER = 4
+/**
+ * Unauthenticated sockets per peer address (below the 4 workers, so one address can never hold them
+ * all; a phone requests one chunk at a time), and their deadline for the TLS handshake and the head.
+ */
+internal const val PREAUTH_PER_PEER = 2
 internal const val PREAUTH_DEADLINE_MS = 5_000L
 
 /**
@@ -165,6 +168,7 @@ class TransferServer(
   private fun serve(socket: Socket, ticket: PreAuthGate.Ticket) {
     socket.use { s ->
       try {
+        ticket.startDeadline()
         s.soTimeout = PREAUTH_DEADLINE_MS.toInt()
         (s as SSLSocket).startHandshake()
         val req = Http.readRequest(s.getInputStream())

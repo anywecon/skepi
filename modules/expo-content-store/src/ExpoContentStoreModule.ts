@@ -47,6 +47,17 @@ export interface EmbeddedCatalog {
   sources: string | null;
 }
 
+export interface LegacyMove {
+  moved: boolean;
+  reason: '' | 'space' | 'copy' | 'conflict' | 'mismatch' | 'missing';
+  /** Where the pack is now: the internal copy when moved, otherwise the external one. */
+  path: string;
+  /** SHA-256 of the external file after a mismatch (empty when nothing was hashed). */
+  sha256: string;
+  /** File stamp of the internal copy when moved. */
+  stamp: string | null;
+}
+
 export interface NetworkLogEntry {
   host: string;
   port: number;
@@ -67,10 +78,16 @@ declare class ExpoContentStoreNativeModule extends NativeModule<ContentStoreEven
   /** Moves a finished download under the content root (Android 7–10) and returns its absolute path. */
   adoptDownload(fileName: string): Promise<string>;
   /**
-   * Android 7–10: moves packs of older versions from external into internal storage. `kept`: content
-   * paths (`zim/<file>`) that could not move and stay where they are (their rows must stay too).
+   * Android 7–10: content paths (`zim/<file>`) of packs an older version left in external storage;
+   * empty elsewhere.
    */
-  migrateLegacyContent(): Promise<{ moved: number; kept: string[] }>;
+  legacyContent(): string[];
+  /**
+   * Android 7–10: copies one legacy pack into internal storage and checks it against `expectedSha256`.
+   * The external copy is deleted only after that match; otherwise it stays and the internal copy is
+   * removed (`reason`: space, copy, conflict, mismatch or missing).
+   */
+  moveLegacyFile(relativePath: string, expectedSha256: string): Promise<LegacyMove>;
   fileInfo(relativePath: string): ContentFileInfo;
   listDir(dir: 'zim' | 'models' | 'maps' | 'tmp'): ContentDirEntry[];
   installFile(fromRelative: string, toRelative: string): Promise<string>;

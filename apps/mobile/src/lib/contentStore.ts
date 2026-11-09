@@ -121,6 +121,8 @@ export interface ReconcileReport {
   missing: string[];
   changed: string[];
   partialsRemoved: number;
+  /** Android 7–10: packs still in external storage after this start, and why (nothing was deleted). */
+  legacyKept: { file: string; reason: 'space' | 'mismatch' | 'failed' }[];
 }
 
 export interface FreeSpace {
@@ -501,6 +503,55 @@ export class AndroidContentStore implements ContentStore {
   }
 
   /**
+   * Android 7–10: moves each pack an older version left in external storage into internal storage. The
+   * copy is checked against the SHA-256 its row was verified against (the signed catalog's digest for a
+   * verified pack) and the external copy is deleted only after that match (native LegacyMigration).
+   * Returns the content paths still in external storage: their rows stay where they are.
+   */
+  private async moveLegacyPacks(
+    db: SqlDatabase,
+    report: ReconcileReport,
+    onProgress?: (file: string, hashed: number, total: number) => void,
+  ): Promise<Set<string>> {
+    const kept = new Set<string>();
+    const pending = ExpoContentStore.legacyContent();
+    if (pending.length === 0) return kept;
+    const rows = await listPacks(db);
+    for (const rel of pending) {
+      const row = rows.find((p) => relativePath(p.kind, p.path.split('/').pop() ?? '') === rel);
+      // A file no row describes was rejected at an earlier start and is never opened: left alone.
+      if (!row) continue;
+      const file = rel.split('/').pop() ?? rel;
+      onProgress?.(file, 0, 1);
+      const move = await ExpoContentStore.moveLegacyFile(rel, row.sha256);
+      if (move.moved) {
+        await upsertPack(db, { ...row, path: move.path, fileStamp: move.stamp });
+        continue;
+      }
+      kept.add(rel);
+      const reason = move.reason === 'space' || move.reason === 'mismatch' ? move.reason : 'failed';
+      report.legacyKept.push({ file, reason });
+      if (reason !== 'mismatch') continue;
+      // The external file no longer has the verified bytes: it stays on disk, but not as verified.
+      report.changed.push(row.id);
+      if (row.kind !== 'zim') {
+        await removePack(db, row.id);
+        (row.kind === 'gguf' ? report.rejectedModels : report.rejectedMaps).push(file);
+        continue;
+      }
+      await upsertPack(db, {
+        ...row,
+        sha256: move.sha256 || row.sha256,
+        verified: false,
+        catalogSeq: null,
+        consentAt: null,
+        fileStamp: null,
+      });
+    }
+    return kept;
+  }
+
+  /**
    * Startup check (architecture: quick check of existence, size and file stamp; full hash when either
    * differs, so a same-size replacement cannot keep the verified state, and for files the database
    * does not know, e.g. provisioned by the dev scripts).
@@ -508,10 +559,18 @@ export class AndroidContentStore implements ContentStore {
   async reconcile(onProgress?: (file: string, hashed: number, total: number) => void): Promise<ReconcileReport> {
     const db = await this.db();
     const catalog = this.catalog();
-    const report: ReconcileReport = { registered: [], unverified: [], rejectedModels: [], rejectedMaps: [], missing: [], changed: [], partialsRemoved: 0 };
+    const report: ReconcileReport = {
+      registered: [],
+      unverified: [],
+      rejectedModels: [],
+      rejectedMaps: [],
+      missing: [],
+      changed: [],
+      partialsRemoved: 0,
+      legacyKept: [],
+    };
     // Android 7–10: packs of older versions move from external into internal storage first.
-    const legacy = await ExpoContentStore.migrateLegacyContent();
-    const kept = new Set(legacy.kept);
+    const kept = await this.moveLegacyPacks(db, report, onProgress);
     const known = await listPacks(db);
     for (const p of known) {
       const file = p.path.split('/').pop() ?? '';

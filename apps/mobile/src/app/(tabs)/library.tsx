@@ -219,6 +219,17 @@ export default function LibraryScreen() {
           {t.library.rejectedMaps(reconcile.rejectedMaps.join(', '))}
         </Text>
       )}
+      {reconcile &&
+        (['space', 'mismatch', 'failed'] as const).map((reason) => {
+          const files = reconcile.legacyKept.filter((k) => k.reason === reason).map((k) => k.file);
+          if (files.length === 0) return null;
+          const text = reason === 'space' ? t.library.legacySpace : reason === 'mismatch' ? t.library.legacyMismatch : t.library.legacyFailed;
+          return (
+            <Text key={reason} style={styles.error} testID={`legacy-${reason}`}>
+              {text(files.join(', '))}
+            </Text>
+          );
+        })}
       <Button testID="library-import" label={t.library.import} onPress={() => void importFile()} disabled={busy} />
       {note('import')}
 

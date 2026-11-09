@@ -8,6 +8,8 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { migrate, type Row, type SqlDatabase, type SqlValue } from '@skepi/db';
 
 export const ROOT = '/data/user/0/org.skepi.app/files/content';
+/** App-specific external storage, where packs lived on Android 7–10 before this version. */
+export const LEGACY_ROOT = '/storage/emulated/0/Android/data/org.skepi.app/files';
 
 interface FakeFile {
   bytes: Uint8Array;
@@ -24,8 +26,10 @@ export class FakeFs {
   readonly hashed: string[] = [];
   /** Runs right after a hash finished, before the caller continues (another process writing). */
   afterHash: ((path: string) => void) | null = null;
-  /** Content paths `migrateLegacyContent` reports as still in external storage. */
-  legacyKept: string[] = [];
+  /** Android 7–10: packs an older version left in external storage, by content path. */
+  readonly legacy = new Map<string, Uint8Array>();
+  /** Free internal storage (moveLegacyFile needs the file size plus a reserve). */
+  freeBytes = 1e12;
   /** Downloads handed to the (fake) DownloadManager, by id - 1. */
   readonly downloads: { url: string; fileName: string; removed: boolean }[] = [];
   /** What queryDownload reports for a running download. */
@@ -44,7 +48,8 @@ export class FakeFs {
     this.hashed.length = 0;
     this.afterHash = null;
     this.downloads.length = 0;
-    this.legacyKept = [];
+    this.legacy.clear();
+    this.freeBytes = 1e12;
   }
 
   private tick(): number {
@@ -135,7 +140,26 @@ export class FakeFs {
       if (d) d.removed = true;
       return d !== undefined;
     },
-    migrateLegacyContent: (): Promise<{ moved: number; kept: string[] }> => Promise.resolve({ moved: 0, kept: this.legacyKept }),
+    legacyContent: (): string[] => [...this.legacy.keys()].sort(),
+    // LegacyMigration.move: the external copy goes only after the internal copy matched.
+    moveLegacyFile: (rel: string, expectedSha256: string) => {
+      const external = this.legacy.get(rel);
+      const result = (moved: boolean, reason: string, sha256 = '') =>
+        Promise.resolve({
+          moved,
+          reason: reason as '' | 'space' | 'copy' | 'conflict' | 'mismatch' | 'missing',
+          path: moved ? this.abs(rel) : `${LEGACY_ROOT}/${rel}`,
+          sha256,
+          stamp: moved ? this.stamp(rel) : null,
+        });
+      if (!external) return result(this.files.has(rel), this.files.has(rel) ? '' : 'missing');
+      if (this.freeBytes < external.length + 64 * 1024 * 1024) return result(false, 'space');
+      const sha = createHash('sha256').update(external).digest('hex');
+      if (sha !== expectedSha256) return result(false, 'mismatch', sha);
+      this.write(rel, external);
+      this.legacy.delete(rel);
+      return result(true, '', sha);
+    },
     addListener: () => ({ remove: (): void => undefined }),
   };
 

@@ -213,6 +213,12 @@ export const en: Messages = {
     noSpace: ({ needed, free }) => `Not enough space: needs ${needed} free (file + 10% + 1 GB), ${free} available.`,
     rejectedModels: (files) => `Rejected unverified models (never loaded): ${files}`,
     rejectedMaps: (files) => `Ignored map and places files that are not in the signed catalog (never opened): ${files}`,
+    legacySpace: (files) =>
+      `Not enough free space to move ${files} into SKEPI's private storage. Nothing was deleted: they stay in shared storage, where other apps can change them. Free up space and restart SKEPI to finish.`,
+    legacyMismatch: (files) =>
+      `${files} in shared storage no longer match the signed catalog and are now unverified. Nothing was deleted.`,
+    legacyFailed: (files) =>
+      `Could not move ${files} into SKEPI's private storage. Nothing was deleted; SKEPI tries again at the next start.`,
     networkLog: ({ count, hosts }) => `Download requests this session: ${count}${count > 0 ? ` (${hosts})` : ''}`,
     mapsAndPlaces: 'Maps & places',
     mapsAndPlacesHint: 'Offline maps, place search and emergency points, country by country.',

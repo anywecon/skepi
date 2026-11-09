@@ -187,6 +187,10 @@ export interface Messages {
     noSpace: (p: { needed: string; free: string }) => string;
     rejectedModels: (files: string) => string;
     rejectedMaps: (files: string) => string;
+    /** Android 7–10: packs that could not move out of shared storage; nothing was deleted. */
+    legacySpace: (files: string) => string;
+    legacyMismatch: (files: string) => string;
+    legacyFailed: (files: string) => string;
     networkLog: (p: { count: number; hosts: string }) => string;
     mapsAndPlaces: string;
     mapsAndPlacesHint: string;

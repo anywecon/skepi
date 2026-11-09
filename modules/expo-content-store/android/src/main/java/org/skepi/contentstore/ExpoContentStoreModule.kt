@@ -16,8 +16,6 @@ import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import java.io.File
 import java.io.FileNotFoundException
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
 
 private const val TAG = "SkepiContentStore"
 private const val MAX_SMALL_FILE_BYTES = 4L * 1024 * 1024
@@ -77,6 +75,11 @@ class ExpoContentStoreModule : Module() {
     ContentRules.resolve(root(), relativePath)
   } catch (e: IllegalArgumentException) {
     throw ContentStoreException("ERR_CS_PATH", e.message ?: "invalid path")
+  }
+
+  private fun legacyMigration(): LegacyMigration? {
+    val external = context.getExternalFilesDir(null)?.canonicalFile ?: return null
+    return LegacyMigration(external, root(), { StatFs(it.path).availableBytes })
   }
 
   private fun downloads(): DownloadManager = context.getSystemService(DownloadManager::class.java)
@@ -162,57 +165,50 @@ class ExpoContentStoreModule : Module() {
         if (!downloaded.isFile) throw ContentStoreException("ERR_CS_NOT_FOUND", "Nothing downloaded for $fileName")
         target.parentFile?.mkdirs()
         // Another file store: copy, then delete the source (not atomic, but nothing opens tmp/).
-        Files.move(downloaded.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        target.delete()
+        try {
+          FileMoves.move(downloaded, target)
+        } catch (e: java.io.IOException) {
+          target.delete()
+          throw ContentStoreException("ERR_CS_IO", e.message ?: "could not move the download")
+        }
       }
       target.absolutePath
     }
 
     /**
-     * Android 7–10 only: packs installed by an older version in external storage move into the
-     * internal content root. They have no file stamp, so the following reconcile hashes them there.
+     * Android 7–10 only: packs an older version left in external storage (content-relative paths);
+     * empty from Android 11. The app moves each one with moveLegacyFile and the digest it was verified
+     * against (LegacyMigration).
      */
-    AsyncFunction("migrateLegacyContent") {
-      val none = mapOf("moved" to 0.0, "kept" to emptyList<String>())
-      if (privateExternal()) return@AsyncFunction none
-      val legacy = context.getExternalFilesDir(null)?.canonicalFile ?: return@AsyncFunction none
-      var moved = 0
-      // Files still only in external storage (not enough space, or the copy failed): their rows stay.
-      val kept = mutableListOf<String>()
-      for (dir in listOf("zim", "models", "maps")) {
-        for (f in File(legacy, dir).listFiles()?.filter { it.isFile && ContentRules.isAllowedFileName(it.name) } ?: emptyList()) {
-          val rel = "$dir/${f.name}"
-          val target = content(rel)
-          if (target.exists()) {
-            // Moved before, but the source was not deleted (killed in between): the copy is complete.
-            // Startup hashes it anyway (it has no stamp yet), so a same-size copy is still checked.
-            if (target.length() == f.length()) {
-              f.delete()
-              continue
-            }
-            if (!target.delete()) {
-              kept.add(rel)
-              continue
-            }
-          }
-          // Copy under a temporary name in tmp/, then one rename: an interrupted copy never looks finished.
-          val staging = content("tmp/${f.name}.migrating")
-          try {
-            if (StatFs(root().path).availableBytes < f.length() + 64L * 1024 * 1024) throw java.io.IOException("not enough internal storage")
-            staging.parentFile?.mkdirs()
-            Files.copy(f.toPath(), staging.toPath(), StandardCopyOption.REPLACE_EXISTING)
-            if (staging.length() != f.length()) throw java.io.IOException("short copy")
-            target.parentFile?.mkdirs()
-            Files.move(staging.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
-            if (!f.delete()) Log.w(TAG, "moved ${f.name}; the external copy stays")
-            moved += 1
-          } catch (e: Exception) {
-            staging.delete()
-            kept.add(rel)
-            Log.w(TAG, "could not move ${f.name} into internal storage: ${e.message}")
-          }
-        }
+    Function("legacyContent") {
+      val pending: List<String> = if (privateExternal()) emptyList() else legacyMigration()?.pending() ?: emptyList()
+      pending
+    }
+
+    /**
+     * Copies one legacy pack into the internal content root and checks it against expectedSha256; the
+     * external copy is deleted only after that match (LegacyMigration.move).
+     */
+    AsyncFunction("moveLegacyFile") { relativePath: String, expectedSha256: String ->
+      if (privateExternal() || !ContentRules.isAllowedFileName(relativePath.substringAfterLast('/'))) {
+        throw ContentStoreException("ERR_CS_PATH", "invalid path: $relativePath")
       }
-      mapOf("moved" to moved.toDouble(), "kept" to kept)
+      val migration = legacyMigration() ?: throw ContentStoreException("ERR_CS_NO_STORAGE", "External files dir unavailable")
+      val outcome = try {
+        migration.move(relativePath, expectedSha256)
+      } catch (e: IllegalArgumentException) {
+        throw ContentStoreException("ERR_CS_PATH", e.message ?: "invalid path")
+      }
+      if (!outcome.moved) Log.w(TAG, "${outcome.reason}: $relativePath stays in external storage")
+      val moved = File(outcome.path)
+      mapOf(
+        "moved" to outcome.moved,
+        "reason" to outcome.reason,
+        "path" to outcome.path,
+        "sha256" to outcome.sha256,
+        "stamp" to (if (outcome.moved && moved.isFile) ContentRules.fileStamp(moved) else null),
+      )
     }
 
     Function("fileInfo") { relativePath: String ->
@@ -241,7 +237,11 @@ class ExpoContentStoreModule : Module() {
       val to = content(toRelative)
       if (!from.isFile) throw ContentStoreException("ERR_CS_NOT_FOUND", "Nothing to install at $fromRelative")
       to.parentFile?.mkdirs()
-      Files.move(from.toPath(), to.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+      try {
+        FileMoves.rename(from, to)
+      } catch (e: java.io.IOException) {
+        throw ContentStoreException("ERR_CS_IO", e.message ?: "could not install $toRelative")
+      }
       to.absolutePath
     }
 
@@ -324,7 +324,7 @@ class ExpoContentStoreModule : Module() {
       val tmp = File(dir, "catalog.json.tmp")
       tmp.writeBytes(Base64.decode(catalogBase64, Base64.NO_WRAP))
       File(dir, "catalog.json.sig").writeText(signature, Charsets.UTF_8)
-      Files.move(tmp.toPath(), File(dir, "catalog.json").toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+      FileMoves.rename(tmp, File(dir, "catalog.json"))
       Unit
     }
 

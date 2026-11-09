@@ -162,8 +162,12 @@ public class ExpoContentStoreModule: Module {
     }
 
     /// Android 7–10 only (packs moving into internal storage); nothing to move on iOS.
-    AsyncFunction("migrateLegacyContent") { () -> [String: Any] in
-      ["moved": 0, "kept": [String]()]
+    Function("legacyContent") { () -> [String] in
+      []
+    }
+
+    AsyncFunction("moveLegacyFile") { (relativePath: String, _: String) -> [String: Any] in
+      throw csError("ERR_CS_PATH", "nothing to move on iOS: \(relativePath)")
     }
 
     Function("listDir") { (dir: String) -> [[String: Any]] in

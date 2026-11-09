@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { parseCatalog, type Catalog } from '@skepi/core';
 import { getPack, upsertPack, type SqlDatabase } from '@skepi/db';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fakeFs, memoryDb } from './fakeNative';
+import { fakeFs, LEGACY_ROOT, memoryDb } from './fakeNative';
 
 vi.mock('expo-content-store', async () => ({ ExpoContentStore: (await import('./fakeNative')).fakeFs.contentStore }));
 vi.mock('expo-hash', async () => ({ hashFile: (await import('./fakeNative')).fakeFs.hash.hashFile }));
@@ -143,19 +143,64 @@ describe('downloads stop at the catalog size', () => {
   });
 });
 
-describe('Android 7–10: packs that could not move into internal storage', () => {
-  it('stay registered while they are still in external storage', async () => {
+describe('Android 7–10 upgrade: packs move from external into internal storage', () => {
+  /** A pack installed by an older version: its file and row point into external storage. */
+  async function legacySmoke(): Promise<string> {
     const rel = await installSmoke();
-    // The file is not under the new (internal) root, and the move reported it as kept.
-    const bytes = fakeFs.read(rel);
+    const row = await getPack(db, SMOKE_ID);
+    if (!row) throw new Error('no row');
+    fakeFs.legacy.set(rel, fakeFs.read(rel));
     fakeFs.files.delete(rel);
-    fakeFs.legacyKept = [rel];
+    await upsertPack(db, { ...row, path: `${LEGACY_ROOT}/${rel}`, fileStamp: null });
+    return rel;
+  }
+
+  it('moves the pack, checked against its catalog digest, and keeps it verified', async () => {
+    const rel = await legacySmoke();
     const report = await store.reconcile();
+    expect(report.legacyKept).toEqual([]);
+    expect(report.changed).toEqual([]);
+    const row = await getPack(db, SMOKE_ID);
+    expect(row?.verified).toBe(true);
+    expect(row?.path).toBe(fakeFs.abs(rel));
+    expect(row?.sha256).toBe(CATALOG.packs.find((p) => p.id === SMOKE_ID)?.sha256);
+    expect(fakeFs.legacy.size).toBe(0);
+    // The stamp was taken at the move: the next start trusts it without hashing.
+    fakeFs.hashed.length = 0;
+    await store.reconcile();
+    expect(fakeFs.hashed).toEqual([]);
+  });
+
+  it('without enough internal space keeps the external copy, deletes nothing and says why', async () => {
+    const rel = await legacySmoke();
+    fakeFs.freeBytes = 1024;
+    const report = await store.reconcile();
+    expect(report.legacyKept).toEqual([{ file: 'eval-smoke-en.zim', reason: 'space' }]);
     expect(report.missing).toEqual([]);
-    expect((await getPack(db, SMOKE_ID))?.verified).toBe(true);
-    // Once it is gone everywhere, it is missing as before.
-    fakeFs.legacyKept = [];
+    expect(fakeFs.legacy.has(rel)).toBe(true);
+    expect(fakeFs.files.has(rel)).toBe(false);
+    expect((await getPack(db, SMOKE_ID))?.path).toBe(`${LEGACY_ROOT}/${rel}`);
+    // Space freed: the next start finishes the move.
+    fakeFs.freeBytes = 1e12;
+    expect((await store.reconcile()).legacyKept).toEqual([]);
+    expect((await getPack(db, SMOKE_ID))?.path).toBe(fakeFs.abs(rel));
+  });
+
+  it('an external copy that no longer matches the catalog is kept on disk but no longer verified', async () => {
+    const rel = await legacySmoke();
+    fakeFs.legacy.set(rel, flipped(SMOKE));
+    const report = await store.reconcile();
+    expect(report.legacyKept).toEqual([{ file: 'eval-smoke-en.zim', reason: 'mismatch' }]);
+    expect(report.changed).toEqual([SMOKE_ID]);
+    expect(fakeFs.legacy.has(rel)).toBe(true);
+    const row = await getPack(db, SMOKE_ID);
+    expect(row?.verified).toBe(false);
+    expect(row?.consentAt).toBeNull();
+  });
+
+  it('a pack gone from both places is missing as before', async () => {
+    const rel = await legacySmoke();
+    fakeFs.legacy.delete(rel);
     expect((await store.reconcile()).missing).toEqual([SMOKE_ID]);
-    fakeFs.write(rel, bytes);
   });
 });

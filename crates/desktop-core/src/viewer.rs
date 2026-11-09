@@ -125,7 +125,7 @@ pub fn inject_head(html: &[u8], dark: bool) -> Vec<u8> {
     if dark {
         meta.push_str(&format!("<style id=\"skepi-dark\">{DARK_CSS}</style>"));
     }
-    match HEAD_OPEN.find(&text) {
+    match HEAD_OPEN.find(text) {
         Some(m) => format!("{}{}{}", &text[..m.end()], meta, &text[m.end()..]).into_bytes(),
         None => format!("{meta}{text}").into_bytes(),
     }

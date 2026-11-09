@@ -218,7 +218,7 @@ export const en: Messages = {
     legacyMismatch: (files) =>
       `${files} in shared storage no longer match the signed catalog and are now unverified. Nothing was deleted.`,
     legacyFailed: (files) =>
-      `Could not move ${files} into SKEPI's private storage. Nothing was deleted; SKEPI tries again at the next start.`,
+      `Could not move ${files} into SKEPI's private storage. Nothing was deleted: they stay where they are, and SKEPI tries again at every start.`,
     networkLog: ({ count, hosts }) => `Download requests this session: ${count}${count > 0 ? ` (${hosts})` : ''}`,
     mapsAndPlaces: 'Maps & places',
     mapsAndPlacesHint: 'Offline maps, place search and emergency points, country by country.',

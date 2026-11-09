@@ -164,6 +164,34 @@ class LegacyMigrationTest {
   }
 
   @Test
+  fun anInternalFileWithoutItsExternalCopyReportsWhatItHolds() {
+    // Killed after the rename; the external copy then vanished and the internal file was changed.
+    val sha = legacyPack("zim/a.zim")
+    val crashing = LegacyMigration(external, internal, plenty, { s, _ -> if (s == "renamed") throw Killed() })
+    assertThrows(Killed::class.java) { crashing.move("zim/a.zim", sha) }
+    ext("zim/a.zim").delete()
+    val bytes = int("zim/a.zim").readBytes()
+    bytes[0] = (bytes[0].toInt() xor 0xff).toByte()
+    int("zim/a.zim").writeBytes(bytes)
+    val outcome = LegacyMigration(external, internal, plenty).move("zim/a.zim", sha)
+    // Reported with its real digest: the caller does not trust it as the verified pack.
+    assertEquals(FileMoves.sha256(int("zim/a.zim")), outcome.sha256)
+    assertFalse(outcome.sha256.equals(sha, ignoreCase = true))
+  }
+
+  @Test
+  fun anInternalFileOfAnotherSizeHoldingTheVerifiedBytesIsAdopted() {
+    val good = File(external, "zim/a.zim").also { it.parentFile?.mkdirs(); it.writeBytes(ByteArray(4096) { 7 }) }
+    val sha = FileMoves.sha256(good)
+    int("zim/a.zim").also { it.parentFile?.mkdirs() }.writeBytes(good.readBytes())
+    good.appendBytes(ByteArray(5))
+    val outcome = LegacyMigration(external, internal, plenty).move("zim/a.zim", sha)
+    assertTrue(outcome.reason, outcome.moved)
+    assertEquals(sha, outcome.sha256)
+    assertFalse(ext("zim/a.zim").exists())
+  }
+
+  @Test
   fun movesWorkWithoutJavaNioFile() {
     // API 24/25 have no java.nio.file: installs and catalog writes use rename(2) and stream copies.
     val a = File(internal, "tmp/x.partial").also { it.parentFile?.mkdirs(); it.writeText("one") }

@@ -30,6 +30,8 @@ export class FakeFs {
   readonly legacy = new Map<string, Uint8Array>();
   /** Free internal storage (moveLegacyFile needs the file size plus a reserve). */
   freeBytes = 1e12;
+  /** Content paths for which moveLegacyFile throws (a native error). */
+  readonly legacyThrows = new Set<string>();
   /** Downloads handed to the (fake) DownloadManager, by id - 1. */
   readonly downloads: { url: string; fileName: string; removed: boolean }[] = [];
   /** What queryDownload reports for a running download. */
@@ -50,6 +52,7 @@ export class FakeFs {
     this.downloads.length = 0;
     this.legacy.clear();
     this.freeBytes = 1e12;
+    this.legacyThrows.clear();
   }
 
   private tick(): number {
@@ -143,22 +146,34 @@ export class FakeFs {
     legacyContent: (): string[] => [...this.legacy.keys()].sort(),
     // LegacyMigration.move: the external copy goes only after the internal copy matched.
     moveLegacyFile: (rel: string, expectedSha256: string) => {
-      const external = this.legacy.get(rel);
+      if (this.legacyThrows.has(rel)) return Promise.reject(new Error(`native failure for ${rel}`));
+      const sha = (b: Uint8Array): string => createHash('sha256').update(b).digest('hex');
       const result = (moved: boolean, reason: string, sha256 = '') =>
         Promise.resolve({
           moved,
           reason: reason as '' | 'space' | 'copy' | 'conflict' | 'mismatch' | 'missing',
           path: moved ? this.abs(rel) : `${LEGACY_ROOT}/${rel}`,
           sha256,
-          stamp: moved ? this.stamp(rel) : null,
+          stamp: moved && sha256 === expectedSha256 ? this.stamp(rel) : null,
         });
-      if (!external) return result(this.files.has(rel), this.files.has(rel) ? '' : 'missing');
-      if (this.freeBytes < external.length + 64 * 1024 * 1024) return result(false, 'space');
-      const sha = createHash('sha256').update(external).digest('hex');
-      if (sha !== expectedSha256) return result(false, 'mismatch', sha);
-      this.write(rel, external);
+      const external = this.legacy.get(rel);
+      const internal = this.files.get(rel);
+      if (!external) return internal ? result(true, '', sha(internal.bytes)) : result(false, 'missing');
+      if (internal && internal.bytes.length !== external.length) {
+        if (sha(internal.bytes) !== expectedSha256) return result(false, 'conflict');
+        this.legacy.delete(rel);
+        return result(true, '', expectedSha256);
+      }
+      if (!internal && this.freeBytes < external.length + 64 * 1024 * 1024) return result(false, 'space');
+      if (!internal) this.write(rel, external);
+      const copied = this.read(rel);
+      if (sha(copied) !== expectedSha256) {
+        this.files.delete(rel);
+        const sourceSha = sha(external);
+        return result(false, sourceSha === expectedSha256 ? 'copy' : 'mismatch', sourceSha);
+      }
       this.legacy.delete(rel);
-      return result(true, '', sha);
+      return result(true, '', expectedSha256);
     },
     addListener: () => ({ remove: (): void => undefined }),
   };

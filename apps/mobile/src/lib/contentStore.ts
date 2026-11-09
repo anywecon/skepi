@@ -523,9 +523,19 @@ export class AndroidContentStore implements ContentStore {
       if (!row) continue;
       const file = rel.split('/').pop() ?? rel;
       onProgress?.(file, 0, 1);
-      const move = await ExpoContentStore.moveLegacyFile(rel, row.sha256);
+      let move: Awaited<ReturnType<typeof ExpoContentStore.moveLegacyFile>>;
+      try {
+        move = await ExpoContentStore.moveLegacyFile(rel, row.sha256);
+      } catch {
+        // One file must not stop the startup check: it stays where it is and is tried again.
+        kept.add(rel);
+        report.legacyKept.push({ file, reason: 'failed' });
+        continue;
+      }
       if (move.moved) {
-        await upsertPack(db, { ...row, path: move.path, fileStamp: move.stamp });
+        // Trusted by its stamp only if it holds the verified bytes; otherwise the check below hashes it.
+        const matched = move.sha256.toLowerCase() === row.sha256.toLowerCase();
+        await upsertPack(db, { ...row, path: move.path, fileStamp: matched ? move.stamp : null });
         continue;
       }
       kept.add(rel);
@@ -575,8 +585,9 @@ export class AndroidContentStore implements ContentStore {
     for (const p of known) {
       const file = p.path.split('/').pop() ?? '';
       const info = ExpoContentStore.fileInfo(relativePath(p.kind, file));
-      // A pack that could not move into internal storage yet stays registered where it is.
-      if (!info.exists && kept.has(relativePath(p.kind, file))) continue;
+      // A pack that could not move into internal storage yet stays registered where it is (also when
+      // another file sits at its internal path).
+      if (kept.has(relativePath(p.kind, file))) continue;
       if (!info.exists) {
         await removePack(db, p.id);
         report.missing.push(p.id);

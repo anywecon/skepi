@@ -102,14 +102,22 @@ class LegacyMigration(
     val source = ContentRules.resolve(external, relativePath)
     val target = ContentRules.resolve(internal, relativePath)
     if (!source.isFile) {
-      return if (target.isFile) Outcome(true, "", target.absolutePath, "") else Outcome(false, "missing", source.absolutePath, "")
+      if (!target.isFile) return Outcome(false, "missing", source.absolutePath, "")
+      // The external copy is gone (deleted after an earlier match, or by someone else): report what the
+      // internal file holds; the caller trusts it only if it equals the expected digest.
+      val actual = try { FileMoves.sha256(target) } catch (e: IOException) { "" }
+      return Outcome(true, "", target.absolutePath, actual)
     }
     val staging = ContentRules.resolve(internal, "tmp/${source.name}.migrating")
     // A copy interrupted by a crash or kill never looks finished: it only ever existed under this name.
     staging.delete()
     if (target.exists() && target.length() != source.length()) {
-      // Not our copy (the rename is atomic and sizes are checked first): touch neither file.
-      return Outcome(false, "conflict", source.absolutePath, "")
+      // Not our copy (the rename is atomic and sizes are checked first). If it already holds the
+      // verified bytes it is the pack; otherwise touch neither file.
+      val actual = try { FileMoves.sha256(target) } catch (e: IOException) { "" }
+      if (!actual.equals(expectedSha256, ignoreCase = true)) return Outcome(false, "conflict", source.absolutePath, "")
+      source.delete()
+      return Outcome(true, "", target.absolutePath, actual)
     }
     if (!target.exists()) {
       if (freeBytes(internal) < source.length() + RESERVE_BYTES) return Outcome(false, "space", source.absolutePath, "")
@@ -137,7 +145,8 @@ class LegacyMigration(
       // Rare: hash the external file too, to tell a bad copy (tried again next start) from an
       // external file that no longer matches (kept, and no longer verified).
       val sourceSha = try { FileMoves.sha256(source) } catch (e: IOException) { "" }
-      return if (sourceSha.equals(expectedSha256, ignoreCase = true)) {
+      // An unreadable external file is not a mismatch: try again at the next start.
+      return if (sourceSha.isEmpty() || sourceSha.equals(expectedSha256, ignoreCase = true)) {
         Outcome(false, "copy", source.absolutePath, sourceSha)
       } else {
         Outcome(false, "mismatch", source.absolutePath, sourceSha)

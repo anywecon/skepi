@@ -198,6 +198,51 @@ describe('Android 7–10 upgrade: packs move from external into internal storage
     expect(row?.consentAt).toBeNull();
   });
 
+  it('an internal file left without its external copy is trusted only after it is hashed', async () => {
+    const rel = await legacySmoke();
+    // Killed after the copy was renamed into place; then the external copy vanished and the internal
+    // file holds other bytes.
+    fakeFs.legacy.delete(rel);
+    fakeFs.write(rel, flipped(SMOKE));
+    const report = await store.reconcile();
+    expect(report.changed).toEqual([SMOKE_ID]);
+    expect((await getPack(db, SMOKE_ID))?.verified).toBe(false);
+  });
+
+  it('a kill between the move and the row update ends with the row on the internal copy, verified', async () => {
+    const rel = await legacySmoke();
+    // The native move finished (internal copy matched, external deleted); the row still points outside.
+    fakeFs.write(rel, fakeFs.legacy.get(rel) ?? new Uint8Array());
+    fakeFs.legacy.delete(rel);
+    const report = await store.reconcile();
+    expect(report.changed).toEqual([]);
+    const row = await getPack(db, SMOKE_ID);
+    expect(row?.verified).toBe(true);
+    expect(row?.path).toBe(fakeFs.abs(rel));
+  });
+
+  it('a native error for one pack keeps it where it is and does not stop the startup check', async () => {
+    const rel = await legacySmoke();
+    fakeFs.legacyThrows.add(rel);
+    const report = await store.reconcile();
+    expect(report.legacyKept).toEqual([{ file: 'eval-smoke-en.zim', reason: 'failed' }]);
+    expect(report.missing).toEqual([]);
+    expect(fakeFs.legacy.has(rel)).toBe(true);
+    expect((await getPack(db, SMOKE_ID))?.verified).toBe(true);
+  });
+
+  it('another file at the internal path is a conflict: both stay, the notice says so', async () => {
+    const rel = await legacySmoke();
+    fakeFs.write(rel, new Uint8Array(10));
+    const report = await store.reconcile();
+    expect(report.legacyKept).toEqual([{ file: 'eval-smoke-en.zim', reason: 'failed' }]);
+    expect(fakeFs.legacy.has(rel)).toBe(true);
+    expect(fakeFs.read(rel).length).toBe(10);
+    const row = await getPack(db, SMOKE_ID);
+    expect(row?.path).toBe(`${LEGACY_ROOT}/${rel}`);
+    expect(row?.verified).toBe(true);
+  });
+
   it('a pack gone from both places is missing as before', async () => {
     const rel = await legacySmoke();
     fakeFs.legacy.delete(rel);

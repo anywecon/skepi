@@ -207,7 +207,8 @@ class ExpoContentStoreModule : Module() {
         "reason" to outcome.reason,
         "path" to outcome.path,
         "sha256" to outcome.sha256,
-        "stamp" to (if (outcome.moved && moved.isFile) ContentRules.fileStamp(moved) else null),
+        // A stamp only for a file that matched: anything else is hashed again by the startup check.
+        "stamp" to (if (outcome.moved && moved.isFile && outcome.sha256.equals(expectedSha256, ignoreCase = true)) ContentRules.fileStamp(moved) else null),
       )
     }
 

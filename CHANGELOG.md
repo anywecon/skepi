@@ -5,6 +5,41 @@ suffix. Phase reports in `docs/` have the details and the measurements.
 
 ## [Unreleased]
 
+## [0.2.2-preview] — Developer Preview (Android + Windows)
+
+Sixth preview, for developers and testers. **Not for emergency use.** A security hardening update; the
+signed catalog, the packs and the emergency cards are unchanged.
+
+### Security
+- Installed packs are bound to the file on disk, not only to its size: any change to a pack file since
+  the last start makes the app hash it again, and a pack that no longer matches the signed catalog loses
+  its verified state (Android and Windows).
+- Android 7–10: packs are stored in the app's internal storage, where other apps cannot write. Packs of
+  earlier versions move there at the first start; the old copy is removed only after the new one matched
+  the signed catalog. If there is not enough space, nothing is deleted and Library says so.
+- A second archive that claims the identity of an open one is refused; verified packs open first, and
+  the "Unverified" label is shown whenever the app cannot prove an archive is verified.
+- Article pages can no longer ask the system to look up or contact other hosts in advance.
+- Windows: malformed archive content can no longer end the app.
+- Imported files are hashed where they are installed. Release builds ignore extra data files placed in
+  the content folder.
+- Nearby sharing (Station and Android host): connections that have not paired yet get their own small
+  budget and time limits, so they cannot block phones that are pairing; the Android host listens only on
+  the address shown in its QR code; the APK download page limits connections and slow readers.
+- The Station APK page shows the certificate fingerprint to compare instead of calling the APK official.
+- The places database cannot open other database files.
+- Downloads: one download at a time per pack on Windows; on Android a download stops as soon as it
+  exceeds the size in the signed catalog.
+- The held-out benchmark asks for consent before opening its archive.
+- Release signing accepts only the reproducible CI build of the release tag's commit.
+
+### Fixed
+- Android 7.0–7.1: file moves no longer use an API that exists only from Android 8 (installs and catalog
+  updates relied on it).
+
+### Changed
+- The repository moved to <https://github.com/anywecon/skepi>; the old address redirects.
+
 ## [0.2.1-preview] — Developer Preview (Android + Windows)
 
 Fifth preview, for developers and testers. **Not for emergency use.** A security and fixes update; the

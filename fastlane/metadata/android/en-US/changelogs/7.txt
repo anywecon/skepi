@@ -1,0 +1,3 @@
+0.2.2-preview, Developer Preview. Not for emergency use.
+
+Security hardening: packs are re-checked whenever their files change; on Android 7-10 packs move to private storage; stricter handling of archives, article pages, nearby sharing and downloads. Signed catalog and packs unchanged.

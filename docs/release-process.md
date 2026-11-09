@@ -48,7 +48,7 @@ came as prebuilt AARs from `node_modules`). Every CMake build loads `apps/mobile
    are annotated and unsigned).
 4. **Download.**
    ```powershell
-   gh run download <run-id> --repo Fiouri/skepi -n skepi-<version>-vc<code>-<commit12>-unsigned -D $env:TEMP\skepi\release
+   gh run download <run-id> --repo anywecon/skepi -n skepi-<version>-vc<code>-<commit12>-unsigned -D $env:TEMP\skepi\release
    ```
 5. **Sign locally (owner).**
    ```powershell
@@ -79,7 +79,17 @@ came as prebuilt AARs from `node_modules`). Every CMake build loads `apps/mobile
    ./scripts/release/check-fdroid-signature-copy.ps1 -Signed <signed.apk> -Unsigned <unsigned.apk>
    ```
 6. **Smoke test.** `adb install -r` the signed APK on the S23 and run `e2e/run-e2e.ps1` (airplane mode).
-   It installs over the previous release (same certificate).
+   It installs over the previous release (same certificate); never uninstall `org.skepi.app` (no backup:
+   `allowBackup=false`). This is the only run of the release build on the phone: development runs use
+   `org.skepi.app.dev`, so the release-only checks happen here, before publishing:
+   - the full Maestro suite, including `onboarding.yaml` (release-only);
+   - ICU data in the content folder is ignored: with an `icu/icudt*.dat` file in the content folder,
+     `adb logcat -s ExpoZim` shows `icu=none` after a cold start (remove the file afterwards);
+   - the app opens the packs installed by the previous version and keeps them verified;
+   - the hand-offs, by hand (no Maestro flow taps them: `run-e2e.ps1` refuses such a flow and fails a run
+     in which the app opened another app): Tools → "Send my location by SMS" opens the SMS app with the position text,
+     Ask → Report → "Send…" opens the share sheet with the report, an emergency card's call button opens
+     the dialler with the number; back out of each without sending or calling.
 7. **Publish (owner).** GitHub release for the tag with `skepi-<version>-arm64.apk` (the name the F-Droid
    recipe's `Binaries:` expects), `SHA256SUMS.txt` with the signed APK's hash, the certificate fingerprint
    and the CI run id.

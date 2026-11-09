@@ -177,33 +177,50 @@ fn is_text(node: Option<NodeRef<'_, Node>>) -> bool {
     matches!(node.map(|n| n.value()), Some(Node::Text(_)))
 }
 
-fn walk(node: NodeRef<'_, Node>, accum: &mut String) {
-    match node.value() {
-        Node::Text(t) => {
-            if preserve_whitespace(node.parent()) {
-                accum.push_str(t);
-            } else {
-                let strip = last_is_space(accum);
-                append_normalised(accum, t, strip);
+/// One step of the traversal: entering a node (its text and leading separator) or leaving an element
+/// (its trailing separator, after all its children).
+enum Step<'a> {
+    Enter(NodeRef<'a, Node>),
+    Exit(NodeRef<'a, Node>),
+}
+
+/// jsoup's depth-first text traversal with an explicit stack: an article's nesting depth is the
+/// archive's choice, so it must not set the depth of the native call stack.
+fn walk(root: NodeRef<'_, Node>, accum: &mut String) {
+    let mut stack = vec![Step::Enter(root)];
+    while let Some(step) = stack.pop() {
+        match step {
+            Step::Enter(node) => match node.value() {
+                Node::Text(t) => {
+                    if preserve_whitespace(node.parent()) {
+                        accum.push_str(t);
+                    } else {
+                        let strip = last_is_space(accum);
+                        append_normalised(accum, t, strip);
+                    }
+                }
+                Node::Element(e) => {
+                    let n = e.name();
+                    let leading = is_block(n) || n == "br" || (JSOUP_TEXT_BOUNDARY.contains(&n) && node.has_children() && has_text(node));
+                    if !accum.is_empty() && leading && !last_is_space(accum) {
+                        accum.push(' ');
+                    }
+                    stack.push(Step::Exit(node));
+                    stack.extend(node.children().rev().map(Step::Enter));
+                }
+                _ => {}
+            },
+            Step::Exit(node) => {
+                let Some(e) = node.value().as_element() else { continue };
+                let n = e.name();
+                let has_block_child = node.children().any(|c| c.value().as_element().is_some_and(|ce| is_block(ce.name())));
+                let trailing = JSOUP_TEXT_BOUNDARY.contains(&n) || is_block(n) || has_block_child;
+                let next = node.next_sibling();
+                if trailing && (is_text(next) || is_inline_element(next)) && !last_is_space(accum) {
+                    accum.push(' ');
+                }
             }
         }
-        Node::Element(e) => {
-            let n = e.name();
-            let leading = is_block(n) || n == "br" || (JSOUP_TEXT_BOUNDARY.contains(&n) && node.has_children() && has_text(node));
-            if !accum.is_empty() && leading && !last_is_space(accum) {
-                accum.push(' ');
-            }
-            for child in node.children() {
-                walk(child, accum);
-            }
-            let has_block_child = node.children().any(|c| c.value().as_element().is_some_and(|ce| is_block(ce.name())));
-            let trailing = JSOUP_TEXT_BOUNDARY.contains(&n) || is_block(n) || has_block_child;
-            let next = node.next_sibling();
-            if trailing && (is_text(next) || is_inline_element(next)) && !last_is_space(accum) {
-                accum.push(' ');
-            }
-        }
-        _ => {}
     }
 }
 
@@ -319,6 +336,19 @@ pub fn extract_sections(html: &str, title: &str) -> Vec<Section> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn deeply_nested_markup_is_walked_without_recursion() {
+        // Deep enough to overflow a 2 MiB thread stack with one frame per element (the parser itself is
+        // quadratic in the depth, as in browsers without a depth cap, so not deeper).
+        let depth = 10_000;
+        let html = format!("<html><body>{}<p>bottom</p>{}<p>after</p></body></html>", "<div>".repeat(depth), "</div>".repeat(depth));
+        let doc = Html::parse_document(&html);
+        let body = doc.select(&scraper::Selector::parse("body").expect("selector")).next().expect("body");
+        assert_eq!(jsoup_text(body), "bottom after");
+        let sections = extract_sections(&html, "Deep");
+        assert!(sections.iter().any(|s| s.text.contains("bottom")), "{sections:?}");
+    }
 
     fn text_of(html: &str) -> String {
         let doc = Html::parse_fragment(html);

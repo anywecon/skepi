@@ -39,9 +39,9 @@ mod ffi {
         fn suggest(self: &Archive, query: &str, limit: u32) -> Result<Vec<Hit>>;
         fn search(self: &Archive, query: &str, limit: u32, with_snippets: bool) -> Result<Vec<Hit>>;
         fn read_item(self: &Archive, path: &str, max_bytes: u64) -> Result<UniquePtr<Item>>;
-        fn path(self: &Item) -> &str;
-        fn title(self: &Item) -> &str;
-        fn mime(self: &Item) -> &str;
+        fn path(self: &Item) -> &[u8];
+        fn title(self: &Item) -> &[u8];
+        fn mime(self: &Item) -> &[u8];
         fn data(self: &Item) -> &[u8];
         fn has_entry(self: &Archive, path: &str) -> Result<bool>;
     }
@@ -76,6 +76,11 @@ impl From<cxx::Exception> for ZimError {
     fn from(e: cxx::Exception) -> Self {
         ZimError(e.what().to_owned())
     }
+}
+
+/// Archive strings are bytes (a ZIM need not store valid UTF-8): invalid sequences become U+FFFD.
+fn text(bytes: &[u8]) -> String {
+    String::from_utf8_lossy(bytes).into_owned()
 }
 
 /// One open archive. zim::Archive reads are thread-safe; the shim serialises the Xapian searchers.
@@ -122,15 +127,23 @@ impl Archive {
     pub fn read_item(&self, path: &str) -> Result<ItemData, ZimError> {
         let item = self.get().read_item(path, MAX_ITEM_BYTES)?;
         let item = item.as_ref().ok_or_else(|| ZimError(format!("no item for {path}")))?;
-        Ok(ItemData {
-            path: item.path().to_owned(),
-            title: item.title().to_owned(),
-            mime: item.mime().to_owned(),
-            data: item.data().to_vec(),
-        })
+        Ok(ItemData { path: text(item.path()), title: text(item.title()), mime: text(item.mime()), data: item.data().to_vec() })
     }
 
     pub fn has_entry(&self, path: &str) -> Result<bool, ZimError> {
         Ok(self.get().has_entry(path)?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::text;
+
+    #[test]
+    fn archive_strings_that_are_not_utf8_are_converted_not_trusted() {
+        assert_eq!(text(b"Canberra"), "Canberra");
+        assert_eq!(text("Καθαρισμός".as_bytes()), "Καθαρισμός");
+        assert_eq!(text(b"Bad\xfftitle"), "Bad\u{fffd}title");
+        assert_eq!(text(b"text/\xc3"), "text/\u{fffd}");
     }
 }

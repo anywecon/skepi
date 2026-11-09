@@ -27,6 +27,7 @@ import {
 import { AndroidContentStore, readAcceptedCatalog, readEmbeddedCatalog, writeAcceptedCatalog, type ReconcileReport } from './contentStore';
 import { appDb } from './db';
 import { LlamaEngine } from './llamaEngine';
+import { openZimPacks } from './openArchives';
 
 
 export const knowledge = createZimKnowledgeEngine();
@@ -87,17 +88,7 @@ interface ContentState {
 export const contentStore = new AndroidContentStore(appDb, () => useContent.getState().catalog?.catalog ?? null);
 
 async function openArchives(packs: readonly InstalledPack[]): Promise<OpenArchive[]> {
-  const out: OpenArchive[] = [];
-  for (const p of packs) {
-    // Nothing unverified opens without consent; models and maps never open here.
-    if (p.kind !== 'zim' || (!p.verified && p.consentAt === null)) continue;
-    try {
-      out.push({ ...(await ExpoZim.openArchive(p.path)), packId: p.id, verified: p.verified });
-    } catch {
-      // A file that libzim refuses (corrupt or not a ZIM) is skipped; the Library shows it.
-    }
-  }
-  return out;
+  return openZimPacks(packs, (path) => ExpoZim.openArchive(path));
 }
 
 async function loadCatalogState(): Promise<CatalogState> {

@@ -52,14 +52,15 @@ pub async fn zim_open_installed(state: State<'_, AppState>) -> Res<Vec<OpenArchi
         zim.close_all();
         zim.set_roots(vec![store.root()]);
         let mut out = Vec::new();
-        for p in store.list_installed().map_err(err)? {
-            if p.kind != PackKind::Zim || (!p.verified && p.consent_at.is_none()) {
+        // Verified packs first: a later file declaring an open archive's UUID is refused.
+        for p in store.openable_zims().map_err(err)? {
+            // A file libzim refuses (corrupt, not a ZIM, or a duplicate UUID) is skipped; the Library shows it.
+            let Ok(info) = zim.open(std::path::Path::new(&p.path)) else { continue };
+            // The archive served under this id must be this pack's file before it carries its label.
+            if desktop_core::zim::dunce_canonical(std::path::Path::new(&p.path)).as_deref() != Some(std::path::Path::new(&info.path)) {
                 continue;
             }
-            // A file libzim refuses (corrupt or not a ZIM) is skipped; the Library shows it.
-            if let Ok(info) = zim.open(std::path::Path::new(&p.path)) {
-                out.push(OpenArchive { info, pack_id: p.id, verified: p.verified });
-            }
+            out.push(OpenArchive { info, pack_id: p.id, verified: p.verified });
         }
         Ok(out)
     })

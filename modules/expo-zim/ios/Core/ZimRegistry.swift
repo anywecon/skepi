@@ -108,7 +108,12 @@ public final class ZimRegistry {
     let opened = OpenArchive(id: archive.uuid, path: file.path, archive: archive)
     lock.lock()
     defer { lock.unlock() }
-    if let previous = archives[opened.id] { return previous }
+    if let previous = archives[opened.id] {
+      // The UUID is self-declared: another file claiming an open archive's id is refused (the app
+      // opens verified packs first), so it is never served or labelled as that archive.
+      if previous.path == opened.path { return previous }
+      throw ZimError("ERR_ZIM_DUPLICATE", "\(file.path) declares the id of the open archive \(previous.path)")
+    }
     archives[opened.id] = opened
     return opened
   }

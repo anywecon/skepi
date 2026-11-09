@@ -126,6 +126,13 @@ fn kind_of(dir: &str, name: &str) -> Option<PackKind> {
 
 const DIRS: [&str; 4] = ["zim", "models", "maps", "tmp"];
 
+/// Verified ZIM packs, then unverified ones the user consented to (never anything else).
+pub fn openable_zims(packs: Vec<PackRow>) -> Vec<PackRow> {
+    let mut zims: Vec<PackRow> = packs.into_iter().filter(|p| p.kind == PackKind::Zim && (p.verified || p.consent_at.is_some())).collect();
+    zims.sort_by_key(|p| !p.verified);
+    zims
+}
+
 impl ContentStore {
     pub fn new(db: Arc<AppDb>, app_data: PathBuf, root: PathBuf, embedded: EmbeddedCatalog) -> Result<Self, ContentError> {
         for d in DIRS {
@@ -559,6 +566,12 @@ impl ContentStore {
         Ok(report)
     }
 
+    /// ZIM packs that may be opened, verified ones first: a ZIM declaring the UUID of an already open
+    /// archive is refused by the registry, so the order decides that a verified pack keeps its id.
+    pub fn openable_zims(&self) -> Result<Vec<PackRow>, ContentError> {
+        Ok(openable_zims(self.list_installed()?))
+    }
+
     pub fn set_consent(&self, id: &str) -> Result<(), ContentError> {
         Ok(self.db.set_consent(id, Some(now_ms()))?)
     }
@@ -566,5 +579,48 @@ impl ContentStore {
     /// The catalog entry a download needs (only catalog packs can be downloaded).
     pub fn download_entry(&self, id: &str) -> Result<CatalogPack, ContentError> {
         self.entry(id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn zim(id: &str, verified: bool, consent: bool) -> PackRow {
+        PackRow {
+            id: id.into(),
+            kind: PackKind::Zim,
+            version: "1".into(),
+            title: id.into(),
+            path: format!("C:/content/zim/{id}.zim"),
+            size_bytes: 1,
+            sha256: "a".repeat(64),
+            verified,
+            catalog_seq: verified.then_some(1),
+            license: None,
+            source: PackSource::Import,
+            consent_at: consent.then_some(1),
+            installed_at: 1,
+            last_opened_at: None,
+            file_stamp: None,
+        }
+    }
+
+    #[test]
+    fn verified_zims_open_before_consented_unverified_ones() {
+        let mut model = zim("model", true, false);
+        model.kind = PackKind::Gguf;
+        let order: Vec<String> = openable_zims(vec![
+            zim("a-unverified", false, true),
+            zim("b-no-consent", false, false),
+            model,
+            zim("c-verified", true, false),
+            zim("d-unverified", false, true),
+            zim("e-verified", true, false),
+        ])
+        .into_iter()
+        .map(|p| p.id)
+        .collect();
+        assert_eq!(order, ["c-verified", "e-verified", "a-unverified", "d-unverified"]);
     }
 }

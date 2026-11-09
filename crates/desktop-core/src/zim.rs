@@ -26,6 +26,8 @@ pub enum ZimError {
     NotHtml(String, String),
     #[error("ERR_ZIM: {0}")]
     Engine(String),
+    #[error("ERR_ZIM_DUPLICATE: {0}")]
+    Duplicate(String),
 }
 
 impl From<zim_ffi::ZimError> for ZimError {
@@ -140,6 +142,17 @@ impl ZimRegistry {
                 let archive = Archive::open(&file)?;
                 let id = archive.meta()?.uuid.to_ascii_lowercase();
                 let mut map = self.archives.write().unwrap_or_else(|p| p.into_inner());
+                // The UUID is self-declared: another file claiming an open archive's id is refused, so
+                // it can never be served (or labelled) as that archive. Callers open verified packs first.
+                if let Some(other) = map.get(&id)
+                    && other.path != file
+                {
+                    return Err(ZimError::Duplicate(format!(
+                        "{} declares the id of the open archive {}",
+                        file.display(),
+                        other.path.display()
+                    )));
+                }
                 let entry = map.entry(id.clone()).or_insert_with(|| Arc::new(Open { path: file.clone(), archive })).clone();
                 let mut order = self.order.write().unwrap_or_else(|p| p.into_inner());
                 if !order.contains(&id) {
@@ -319,6 +332,37 @@ mod tests {
         assert!(matches!(reg.open(&fixtures().join("../fixtures/../sets/en.json")), Err(ZimError::Path(_))));
         let again = reg.open(&fixtures().join("eval-smoke-en.zim")).expect("reopen");
         assert_eq!(again.archive_id, info.archive_id);
+    }
+
+    /// A copy of eval-synthetic.zim (different content) that claims eval-smoke-en.zim's UUID.
+    fn uuid_clone(dir: &Path) -> PathBuf {
+        let smoke = std::fs::read(fixtures().join("eval-smoke-en.zim")).expect("smoke");
+        let mut other = std::fs::read(fixtures().join("eval-synthetic.zim")).expect("synthetic");
+        other[8..24].copy_from_slice(&smoke[8..24]);
+        let path = dir.join("claims-smoke-uuid.zim");
+        std::fs::write(&path, other).expect("write");
+        path
+    }
+
+    #[test]
+    fn a_second_file_with_an_open_archive_id_is_refused() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let genuine = dir.path().join("eval-smoke-en.zim");
+        std::fs::copy(fixtures().join("eval-smoke-en.zim"), &genuine).expect("copy");
+        let clone = uuid_clone(dir.path());
+        let reg = ZimRegistry::new();
+        reg.set_roots(vec![dir.path().to_path_buf()]);
+        let first = reg.open(&genuine).expect("open genuine");
+        // The clone must not come back as the genuine archive (or replace it).
+        assert!(matches!(reg.open(&clone), Err(ZimError::Duplicate(_))), "same UUID from another file is refused");
+        assert_eq!(reg.open(&genuine).expect("reopen").path, first.path);
+        assert!(
+            reg.suggest("canber", 3, Some(std::slice::from_ref(&first.archive_id))).expect("suggest").iter().any(|h| h.path == "Canberra")
+        );
+        // Whichever file opens first keeps the id: the other is refused (callers open verified packs first).
+        reg.close_all();
+        reg.open(&clone).expect("open clone first");
+        assert!(matches!(reg.open(&genuine), Err(ZimError::Duplicate(_))));
     }
 
     #[test]

@@ -107,7 +107,10 @@ internal object ZimRegistry {
     val previous = archives.putIfAbsent(id, opened)
     if (previous != null) {
       archive.dispose()
-      return previous
+      // The UUID is self-declared: another file claiming an open archive's id is refused (the app
+      // opens verified packs first), so it is never served or labelled as that archive.
+      if (previous.path == opened.path) return previous
+      throw ZimException("ERR_ZIM_DUPLICATE", "${file.path} declares the id of the open archive ${previous.path}")
     }
     return opened
   }

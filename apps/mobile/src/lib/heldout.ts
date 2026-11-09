@@ -34,10 +34,15 @@ function sourcesOf(r: RetrievalResult): { id: string; title: string; heading: st
   return r.sources.map((s) => ({ id: s.id, title: s.title, heading: s.heading, path: s.path, text: s.text }));
 }
 
-export async function runHeldout(log: (line: string) => void): Promise<number> {
+/**
+ * `consent(archive)` is asked before the set's archive opens: it is not in the signed catalog, so it
+ * opens only by the user's explicit choice, like any unverified ZIM.
+ */
+export async function runHeldout(log: (line: string) => void, consent: (archive: string) => Promise<boolean>): Promise<number> {
   const raw = await ExpoZim.readContentFile(HELDOUT_RUN);
   if (raw === null) throw new Error(`${HELDOUT_RUN} not found (push it with e2e/run-heldout.ps1)`);
   const run = parseRun(raw);
+  if (!(await consent(run.archive))) throw new Error(`held-out: ${run.archive} not opened (unverified, no consent)`);
   const { contentDir } = await ExpoZim.getRuntimeInfo();
   const extra = await ExpoZim.openArchive(`${contentDir}/${run.archive}`);
   const archives = [...ragArchives().filter((a) => a.archiveId !== extra.archiveId), { archiveId: extra.archiveId, language: extra.language }];

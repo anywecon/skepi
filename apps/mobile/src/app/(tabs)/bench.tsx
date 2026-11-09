@@ -30,6 +30,8 @@ export default function BenchScreen() {
   const [error, setError] = useState<string | null>(null);
   const [parity, setParity] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
   const [heldout, setHeldout] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+  /** The held-out archive waiting for the user's consent (unverified content). */
+  const [heldoutConsent, setHeldoutConsent] = useState<{ archive: string; answer: (ok: boolean) => void } | null>(null);
   const [energyExport, setEnergyExport] = useState<string | null>(null);
 
   // Render probe for "sources visible": the bench shows the sources here, like the Ask screen does,
@@ -82,9 +84,21 @@ export default function BenchScreen() {
     setLines([]);
     setError(null);
     try {
-      await runHeldout((line) => {
-        setLines((prev) => [...prev, line]);
-      });
+      await runHeldout(
+        (line) => {
+          setLines((prev) => [...prev, line]);
+        },
+        (archive) =>
+          new Promise<boolean>((resolve) => {
+            setHeldoutConsent({
+              archive,
+              answer: (ok) => {
+                setHeldoutConsent(null);
+                resolve(ok);
+              },
+            });
+          }),
+      );
       setHeldout('done');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -182,6 +196,28 @@ export default function BenchScreen() {
             {`parity: ${parity}`}
           </Text>
           <Button testID="bench-heldout" label="Run held-out set" onPress={() => void startHeldout()} disabled={running} />
+          {heldoutConsent && (
+            <View style={{ gap: 4 }} testID="heldout-consent">
+              <Text style={styles.text}>{t.unverified.consentTitle}</Text>
+              <Text style={styles.muted}>{t.unverified.consentBody(heldoutConsent.archive)}</Text>
+              <View style={styles.row}>
+                <Button
+                  testID="heldout-consent-accept"
+                  label={t.unverified.consentAccept}
+                  onPress={() => {
+                    heldoutConsent.answer(true);
+                  }}
+                />
+                <Button
+                  testID="heldout-consent-cancel"
+                  label={t.unverified.cancel}
+                  onPress={() => {
+                    heldoutConsent.answer(false);
+                  }}
+                />
+              </View>
+            </View>
+          )}
           <Text style={styles.muted} testID="heldout-status">
             {`held-out: ${heldout}`}
           </Text>

@@ -23,6 +23,14 @@ onFlowComplete:
     timeout: 30000
 - tapOn:
     id: bench-heldout
+# The set's archive is not in the signed catalog: it opens only after consent.
+- scrollUntilVisible:
+    element:
+      id: heldout-consent-accept
+    direction: DOWN
+    timeout: 30000
+- tapOn:
+    id: heldout-consent-accept
 - extendedWaitUntil:
     visible:
       id: heldout-status

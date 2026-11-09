@@ -103,7 +103,10 @@ internal object ZimRegistry {
     return file
   }
 
-  fun open(file: File): OpenArchive {
+  fun open(raw: File): OpenArchive {
+    // One spelling per file (/data/user/0 and /data/data name the same one): a file opened again is
+    // never mistaken for another file declaring its id.
+    val file = raw.canonicalFile
     archives.values.firstOrNull { it.path == file.path }?.let { return it }
     val archive = Archive(file.path)
     val id = archive.uuid

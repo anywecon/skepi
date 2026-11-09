@@ -27,6 +27,8 @@ class DuplicateArchiveTest {
       val e = assertThrows(ZimException::class.java) { ZimRegistry.open(copy.canonicalFile) }
       assertEquals("ERR_ZIM_DUPLICATE", e.code)
       assertEquals(first.path, ZimRegistry.open(original.canonicalFile).path)
+      // The same file under another spelling of its path (/data/user/0 vs /data/data) is the same archive.
+      assertEquals(first.path, ZimRegistry.open(File(target.filesDir, "../files/sealing-fixture.zim")).path)
       assertEquals(first.path, ZimRegistry.get(first.id).path)
     } finally {
       copy.delete()

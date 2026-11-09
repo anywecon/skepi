@@ -1,6 +1,7 @@
 package org.skepi.zim
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.util.Log
 import expo.modules.kotlin.exception.CodedException
@@ -55,7 +56,7 @@ internal object ZimRegistry {
   @Volatile var nativeInitMs: Long = 0
     private set
 
-  /** Loads the native libraries once and points ICU at provisioned data when present. */
+  /** Loads the native libraries once and, in debuggable builds, points ICU at provisioned data when present. */
   @Synchronized
   fun ensureInitialised(context: Context) {
     if (initialised) return
@@ -64,7 +65,10 @@ internal object ZimRegistry {
     // mode 770) are not listable by the app on Android 11+.
     contentRoot(context)?.let { root -> CONTENT_DIRS.forEach { File(root, it).mkdirs() } }
     val kiwix = JNIKiwix(context.applicationContext)
-    val icuDir = contentRoot(context)?.let { File(it, "icu") }
+    // ICU data from the content folder is a dev aid (scripts/provision.ps1): it is not in the signed
+    // catalog and nothing verifies it, so release builds never load it.
+    val debuggable = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    val icuDir = if (debuggable) contentRoot(context)?.let { File(it, "icu") } else null
     if (icuDir != null && icuDir.listFiles { f -> f.name.startsWith("icudt") && f.name.endsWith(".dat") }?.isNotEmpty() == true) {
       kiwix.setDataDirectory(icuDir.absolutePath)
       icuDataDir = icuDir.absolutePath

@@ -87,3 +87,26 @@ describe('reconcile binds the verified state to the file, not to its size', () =
     expect((await getPack(db, SMOKE_ID))?.verified).toBe(true);
   });
 });
+
+describe('import verifies the bytes that end up installed', () => {
+  it('a file changed between the hash and the move is not registered', async () => {
+    fakeFs.documents.set('content://picked/eval-smoke-en.zim', { name: 'eval-smoke-en.zim', bytes: SMOKE });
+    // Another writer changes the copy right after it was hashed in tmp/, before it moves into place.
+    fakeFs.afterHash = (path) => {
+      const rel = fakeFs.rel(path);
+      if (rel.startsWith('tmp/')) {
+        fakeFs.overwriteInPlace(rel, flipped(SMOKE), true);
+        fakeFs.afterHash = null;
+      }
+    };
+    await expect(store.importFile('content://picked/eval-smoke-en.zim')).rejects.toMatchObject({ code: 'hash_mismatch' });
+    expect(await getPack(db, SMOKE_ID)).toBeNull();
+    expect([...fakeFs.files.keys()].filter((k) => k.startsWith('zim/'))).toEqual([]);
+  });
+
+  it('an unchanged import is registered with the hash of the installed file', async () => {
+    const rel = await installSmoke();
+    expect(fakeFs.hashed.at(-1)).toBe(fakeFs.abs(rel));
+    expect((await getPack(db, SMOKE_ID))?.verified).toBe(true);
+  });
+});

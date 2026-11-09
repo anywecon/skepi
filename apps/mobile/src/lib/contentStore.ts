@@ -87,6 +87,14 @@ function toInstalled(p: PackRow): InstalledPack {
   };
 }
 
+/** Hashes an installed file and throws `hash_mismatch` unless it has exactly these bytes. */
+async function requireDigest(path: string, sha256: string, sizeBytes: number): Promise<void> {
+  const d = await hashFile(path);
+  if (d.sha256 !== sha256 || d.sizeBytes !== sizeBytes) {
+    throw new ContentError('hash_mismatch', `${path}: the installed file is not the file that was checked`);
+  }
+}
+
 /** Reads the live flag (it can flip while a native call is awaited). */
 function isAborted(signal: AbortSignal): boolean {
   return signal.aborted;
@@ -269,8 +277,19 @@ export class AndroidContentStore implements ContentStore {
     return alive;
   }
 
-  /** Atomic rename into place, then registration; a failed registration removes the file again. */
-  private async install(db: SqlDatabase, entry: CatalogEntry, from: string, sha256: string, source: PackRow['source']): Promise<PackRow> {
+  /**
+   * Atomic rename into place, then registration; a failed registration removes the file again.
+   * `verifyInstalled` hashes the file again after the move (imports: the bytes that were looked up
+   * must be the bytes that are registered).
+   */
+  private async install(
+    db: SqlDatabase,
+    entry: CatalogEntry,
+    from: string,
+    sha256: string,
+    source: PackRow['source'],
+    verifyInstalled = false,
+  ): Promise<PackRow> {
     const target = relativePath(entry.kind, entry.file);
     const catalog = this.catalog();
     const row: PackRow = {
@@ -300,6 +319,7 @@ export class AndroidContentStore implements ContentStore {
         row.path = await ExpoContentStore.installFile(from, target);
         moved.done = true;
         row.fileStamp = ExpoContentStore.fileInfo(target).stamp;
+        if (verifyInstalled) await requireDigest(row.path, entry.sha256, entry.sizeBytes);
         await upsertPack(tx, row);
       });
     } catch (e) {
@@ -314,7 +334,8 @@ export class AndroidContentStore implements ContentStore {
 
   /**
    * Import from a file picked with the Storage Access Framework: copied into app storage (libzim
-   * needs a real path), hashed, looked up in the catalog. Known → verified pack. Unknown ZIM →
+   * needs a real path), hashed, looked up in the catalog, moved into place and hashed again there
+   * (what is registered is what was checked). Known → verified pack. Unknown ZIM →
    * unverified (opens only after consent, labelled, JavaScript off). Unknown GGUF → rejected.
    */
   async importFile(uri: string, onProgress?: (phase: 'copying' | 'verifying', bytes: number) => void): Promise<InstalledPack> {
@@ -336,7 +357,7 @@ export class AndroidContentStore implements ContentStore {
       const catalog = this.catalog();
       const known = catalog ? findPackBySha256(catalog, digest.sha256) : null;
       if (known) {
-        const row = await this.install(db, known, copied.relativePath, digest.sha256, 'import');
+        const row = await this.install(db, known, copied.relativePath, digest.sha256, 'import', true);
         return toInstalled(row);
       }
       const name = copied.displayName.toLowerCase();
@@ -361,11 +382,20 @@ export class AndroidContentStore implements ContentStore {
         lastOpenedAt: null,
         fileStamp: null,
       };
-      await db.transaction(async (tx) => {
-        row.path = await ExpoContentStore.installFile(copied.relativePath, `zim/${file}`);
-        row.fileStamp = ExpoContentStore.fileInfo(`zim/${file}`).stamp;
-        await upsertPack(tx, row);
-      });
+      const moved = { done: false };
+      try {
+        await db.transaction(async (tx) => {
+          row.path = await ExpoContentStore.installFile(copied.relativePath, `zim/${file}`);
+          moved.done = true;
+          row.fileStamp = ExpoContentStore.fileInfo(`zim/${file}`).stamp;
+          // The id and the registered hash name these bytes: hash what was installed.
+          await requireDigest(row.path, digest.sha256, digest.sizeBytes);
+          await upsertPack(tx, row);
+        });
+      } catch (e) {
+        if (moved.done) await ExpoContentStore.deleteFile(`zim/${file}`);
+        throw e;
+      }
       return toInstalled(row);
     } finally {
       await ExpoContentStore.deleteFile(copied.relativePath);

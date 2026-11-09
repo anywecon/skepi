@@ -613,7 +613,7 @@ Targets are measured on a T1 reference device (4 GB Android). A PR that regresse
 - libzim cluster cache is capped per tier.
 - One article viewer per screen, not one per tab.
 
-**App size:** ICU data is excluded (ADR: identical results for English and Greek with and without it; saves 32 MB). Any new locale must be re-tested without ICU before shipping. Only 3 of 7 llama.rn library variants ship; native libraries are compressed. Release builds run R8 (minify, no resource shrinking) with keep rules for `org.kiwix.**`, `com.rnllama.**`, MapLibre and the Expo modules (`apps/mobile/plugins/proguard-rules.skepi.pro`). App Bundle with ABI splits, arm64 primary.
+**App size:** ICU data is excluded (ADR: identical results for English and Greek with and without it; saves 32 MB). ICU data in the content folder (`icu/`, pushed by `scripts/provision.ps1` for experiments) is loaded only by debuggable builds: it is not in the signed catalog. Any new locale must be re-tested without ICU before shipping. Only 3 of 7 llama.rn library variants ship; native libraries are compressed. Release builds run R8 (minify, no resource shrinking) with keep rules for `org.kiwix.**`, `com.rnllama.**`, MapLibre and the Expo modules (`apps/mobile/plugins/proguard-rules.skepi.pro`). App Bundle with ABI splits, arm64 primary.
 
 **Blackout mode**
 

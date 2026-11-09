@@ -119,8 +119,9 @@ pub async fn zim_plain_text(state: State<'_, AppState>, archive_id: String, path
 /// off (`msOneAuthWAM`, `msLoadOneAuthInBackground`, `msEdgeOSAccountInfoSubstrate`: without them the
 /// browser process fetched the Windows account's profile from substrate.office.com at every start,
 /// measured with apps/desktop/e2e/egress.mjs); no background networking, component updates,
-/// domain reliability reports or pings. docs/threat-model.md, "WebView2 runtime egress".
-pub const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,msOneAuthWAM,msLoadOneAuthInBackground,msEdgeOSAccountInfoSubstrate --disable-background-networking --disable-component-update --disable-domain-reliability --no-pings";
+/// domain reliability reports or pings, no DNS prefetching (the viewer also strips resource hints and
+/// sends `X-DNS-Prefetch-Control: off`). docs/threat-model.md, "WebView2 runtime egress".
+pub const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,msOneAuthWAM,msLoadOneAuthInBackground,msEdgeOSAccountInfoSubstrate --disable-background-networking --disable-component-update --disable-domain-reliability --no-pings --dns-prefetch-disable";
 
 /// The `zim` protocol's origin: WebView2 serves custom schemes as `http://<scheme>.localhost`, WKWebView
 /// (macOS) as `<scheme>://localhost`.

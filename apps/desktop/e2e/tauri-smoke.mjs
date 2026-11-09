@@ -8,7 +8,7 @@
 // (paths: --tauri-driver, --edge-driver, or %LOCALAPPDATA%\skepi\tools\...). WebDriver is spoken over
 // plain HTTP here (local only), so the smoke run has no npm dependencies.
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +40,10 @@ const edgeDriver = args['edge-driver'] ?? newest(tools, 'msedgedriver-', 'msedge
 if (!tauriDriver || !edgeDriver) throw new Error('tauri-driver or msedgedriver not found');
 mkdirSync(args.out, { recursive: true });
 rmSync(join(args.out, 'webview-netlog.json'), { force: true });
+rmSync(join(args.out, 'session-netlog.json'), { force: true });
+// The resource-hints page (fixtures/make_viewer_hints_zim.py) joins the content folder as an unverified ZIM.
+mkdirSync(join(args.content, 'zim'), { recursive: true });
+copyFileSync(join(HERE, 'fixtures', 'viewer-hints.zim'), join(args.content, 'zim', 'viewer-hints.zim'));
 const appData = mkdtempSync(join(tmpdir(), 'skepi-smoke-'));
 const results = [];
 const PORT = 4444;
@@ -89,12 +93,15 @@ const ENTER = '';
 // msedgedriver hands these to WebView2 instead of the app's own additionalBrowserArgs: the same list
 // as src-tauri/src/commands.rs BROWSER_ARGS, so the egress check sees the app's real configuration.
 const NETLOG = resolve(args.out, 'webview-netlog.json');
+/** Net log of the whole WebDriver session (every page the viewer opens, the resource-hints page included). */
+const SESSION_NETLOG = resolve(args.out, 'session-netlog.json');
 const BROWSER_ARGS = [
   '--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,msOneAuthWAM,msLoadOneAuthInBackground,msEdgeOSAccountInfoSubstrate',
   '--disable-background-networking',
   '--disable-component-update',
   '--disable-domain-reliability',
   '--no-pings',
+  '--dns-prefetch-disable',
 ];
 
 async function screenshot(name) {
@@ -118,6 +125,8 @@ while ($added) { $added = $false; foreach ($p in $all) { if ($ids -contains $p.P
 }
 
 const egress = [];
+/** Title of the resource-hints page once the viewer showed it (the net log check needs the page loaded). */
+let hintsPageTitle = null;
 /** Developer Preview build (label on home), set after start. */
 let preview;
 let samples = 0;
@@ -161,7 +170,7 @@ driver.stdout.on('data', () => undefined);
 
 try {
   await waitFor(() => fetch(`${WD}/status`).then((r) => r.ok), 20_000, 'tauri-driver');
-  S = (await wd('POST', '/session', { capabilities: { alwaysMatch: { browserName: 'wry', 'tauri:options': { application: resolve(args.app), webviewOptions: { additionalBrowserArguments: BROWSER_ARGS } } } } })).sessionId;
+  S = (await wd('POST', '/session', { capabilities: { alwaysMatch: { browserName: 'wry', 'tauri:options': { application: resolve(args.app), webviewOptions: { additionalBrowserArguments: [...BROWSER_ARGS, `--log-net-log=${SESSION_NETLOG}`, '--net-log-capture-mode=Default'] } } } } })).sessionId;
   const main = await wd('GET', `/session/${S}/window`);
 
   await waitFor(() => visible('search-screen'), 60_000, 'app start');
@@ -176,10 +185,12 @@ try {
   await click(tid('tab-library'));
   await waitFor(() => visible('installed-wikipedia_en_top_mini'), 30_000, 'library');
   check('reconcile registers catalog packs as verified', (await textOf(tid('installed-wikipedia_en_top_mini'))).includes('Verified'));
-  check('unknown ZIM is listed unverified and needs consent', (await findAll('[data-testid^="consent-local-"]')).length === 1);
-  await click('[data-testid^="consent-local-"]');
-  await click(tid('consent-accept'));
-  await waitFor(async () => (await findAll('[data-testid^="consent-local-"]')).length === 0, 10_000, 'consent');
+  check('unknown ZIMs are listed unverified and need consent (sealing and resource-hints fixtures)', (await findAll('[data-testid^="consent-local-"]')).length === 2);
+  for (let left = 2; left > 0; left -= 1) {
+    await click('[data-testid^="consent-local-"]');
+    await click(tid('consent-accept'));
+    await waitFor(async () => (await findAll('[data-testid^="consent-local-"]')).length === left - 1, 10_000, 'consent');
+  }
 
   // Search through libzim: suggestions and full text.
   await click(tid('tab-search'));
@@ -236,6 +247,25 @@ try {
   await click('#http');
   await sleep(1500);
   check('external link navigation cancelled (viewer stays on zim://)', (await wd('GET', `/session/${S}/url`)).startsWith('http://zim.localhost/'));
+
+  // Resource hints (preconnect, dns-prefetch, prefetch, prerender, preload, modulepreload; entity-encoded,
+  // quoted ">" and <noscript> variants): stripped from the page; the session net log is checked below.
+  await wd('POST', `/session/${S}/window`, { handle: main });
+  await clear(tid('search-input'));
+  await type(tid('search-input'), 'Resource hints');
+  await waitFor(() => visible('hit-Resource_hints'), 15_000, 'resource-hints fixture hit');
+  await click(tid('hit-Resource_hints'));
+  await wd('POST', `/session/${S}/window`, { handle: viewer });
+  // The viewer URL percent-encodes every non-alphanumeric byte ("_" is %5F).
+  await waitFor(async () => (await wd('GET', `/session/${S}/url`)).includes('/Resource%5Fhints'), 15_000, 'resource-hints navigation');
+  hintsPageTitle = await wd('GET', `/session/${S}/title`);
+  const hintLinks = await runInPage(`
+    const done = arguments[arguments.length - 1];
+    done(Array.from(document.querySelectorAll('link')).map((l) => l.rel + ' ' + l.href).filter((t) => t.includes('skepi-hint-')));
+  `).catch((e) => [`probe failed: ${e.message}`]);
+  check('resource hints are not in the served page', hintLinks.length === 0, JSON.stringify(hintLinks));
+  // Time for the browser to act on any hint that survived.
+  await sleep(5000);
   await wd('POST', `/session/${S}/window`, { handle: main });
   await waitFor(async () => (await textOf(tid('external-links'))).includes('example.invalid'), 10_000, 'external link banner');
   check('external link shown as text in the main window', true, await textOf(tid('external-links')));
@@ -412,6 +442,20 @@ function netLogUrls(path) {
   }
 }
 const urls = netLogUrls(NETLOG);
+/** Hosts named anywhere in the session's net log (DNS jobs, sockets, requests) that a resource hint asked for. */
+function hintHosts(path) {
+  try {
+    return [...new Set(readFileSync(path, 'utf8').match(/skepi-hint-[a-z-]+\.example\.com/g) ?? [])];
+  } catch (e) {
+    return [`unreadable session net log: ${e.message}`];
+  }
+}
+const hinted = hintHosts(SESSION_NETLOG);
+check(
+  'a crafted ZIM page triggers zero egress (page shown, session net log names no resource-hint host)',
+  hintsPageTitle === 'Resource hints' && existsSync(SESSION_NETLOG) && hinted.length === 0,
+  `title ${JSON.stringify(hintsPageTitle)}, hinted ${JSON.stringify(hinted)}`,
+);
 const LOCAL = /^(http:\/\/(tauri|ipc|zim|maps)\.localhost\/|data:|blob:)/;
 const remote = urls.filter((u) => !LOCAL.test(u));
 check('zero egress from the webviews at startup (net log: only tauri/ipc/zim/maps.localhost)', urls.length > 0 && remote.length === 0, `${String(urls.length)} URLs; remote: ${JSON.stringify(remote)}`);

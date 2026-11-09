@@ -140,7 +140,10 @@ from app.db; files and folders come from native pickers opened by Rust.
 The Microsoft WebView2 Runtime is a browser with its own services. The app restricts it:
 
 - Browser arguments (`apps/desktop/src-tauri/src/commands.rs` `BROWSER_ARGS`, same for every webview):
-  `--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,msOneAuthWAM,msLoadOneAuthInBackground,msEdgeOSAccountInfoSubstrate --disable-background-networking --disable-component-update --disable-domain-reliability --no-pings`.
+  `--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,msOneAuthWAM,msLoadOneAuthInBackground,msEdgeOSAccountInfoSubstrate --disable-background-networking --disable-component-update --disable-domain-reliability --no-pings --dns-prefetch-disable`.
+- Sealed viewer (`crates/desktop-core/src/viewer.rs`): resource-hint links (`preconnect`, `dns-prefetch`,
+  `prefetch`, `prerender`, `preload`, `modulepreload`) are removed from every page, parsed as the browser
+  parses it, and every response sends `X-DNS-Prefetch-Control: off`: hints are resolved outside the CSP.
 - WebView2 API (`src/webview2.rs`, every navigation of every webview): `IsReputationCheckingRequired = false`
   (no SmartScreen lookup of navigations or downloads).
 

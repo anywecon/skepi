@@ -19,7 +19,48 @@ pub const SECURITY_HEADERS: &[(&str, &str)] = &[
     ("Referrer-Policy", "no-referrer"),
     ("Cache-Control", "no-store"),
     ("Cross-Origin-Resource-Policy", "same-origin"),
+    // Chromium resolves <link rel=dns-prefetch> hosts outside the CSP; resource hints are also stripped.
+    ("X-DNS-Prefetch-Control", "off"),
 ];
+
+/// `<link rel>` values that make the browser resolve, connect to or fetch a host on its own, before
+/// (and outside) any request the CSP governs.
+const RESOURCE_HINTS: [&str; 6] = ["preconnect", "dns-prefetch", "prefetch", "prerender", "preload", "modulepreload"];
+
+/// Removes every resource-hint `<link>` from a page. The page is parsed as the viewer's browser parses
+/// it (HTML5 tree builder, scripting off, so `<noscript>` content counts, entities decoded); a page
+/// without hints keeps its bytes. Returns None when nothing was removed.
+pub fn strip_resource_hints(html: &str) -> Option<String> {
+    use html5ever::tendril::TendrilSink;
+    use html5ever::tree_builder::TreeBuilderOpts;
+    if !html.to_ascii_lowercase().contains("link") {
+        return None;
+    }
+    let opts =
+        html5ever::ParseOpts { tree_builder: TreeBuilderOpts { scripting_enabled: false, ..Default::default() }, ..Default::default() };
+    let mut doc = html5ever::parse_document(scraper::HtmlTreeSink::new(scraper::Html::new_document()), opts).one(html);
+    let hints: Vec<_> = doc
+        .tree
+        .nodes()
+        .filter(|n| {
+            n.value().as_element().is_some_and(|e| {
+                e.name().eq_ignore_ascii_case("link")
+                    && e.attr("rel")
+                        .is_some_and(|rel| rel.split_ascii_whitespace().any(|t| RESOURCE_HINTS.iter().any(|h| t.eq_ignore_ascii_case(h))))
+            })
+        })
+        .map(|n| n.id())
+        .collect();
+    if hints.is_empty() {
+        return None;
+    }
+    for id in hints {
+        if let Some(mut node) = doc.tree.get_mut(id) {
+            node.detach();
+        }
+    }
+    Some(doc.html())
+}
 
 /// Blackout theme (same CSS as Android).
 pub const DARK_CSS: &str = "html,body{background:#000!important;color:#e5e7eb!important}*{background-color:transparent!important;color:inherit!important;border-color:#525252!important}a,a:visited{color:#93c5fd!important}img,video{opacity:.8}";
@@ -72,10 +113,15 @@ pub fn split_mime(mime: &str) -> (String, Option<String>) {
     (ty, charset)
 }
 
-/// Defence in depth: the CSP also travels inside the document; the blackout CSS follows it.
+/// Defence in depth: the CSP (and DNS prefetch off) also travel inside the document, resource hints
+/// are removed; the blackout CSS follows.
 pub fn inject_head(html: &[u8], dark: bool) -> Vec<u8> {
-    let text = String::from_utf8_lossy(html);
-    let mut meta = format!("<meta http-equiv=\"Content-Security-Policy\" content=\"{CSP}\">");
+    let decoded = String::from_utf8_lossy(html);
+    let stripped = strip_resource_hints(&decoded);
+    let text = stripped.as_deref().unwrap_or(&decoded);
+    let mut meta = format!(
+        "<meta http-equiv=\"Content-Security-Policy\" content=\"{CSP}\"><meta http-equiv=\"x-dns-prefetch-control\" content=\"off\">"
+    );
     if dark {
         meta.push_str(&format!("<style id=\"skepi-dark\">{DARK_CSS}</style>"));
     }
@@ -161,6 +207,36 @@ mod tests {
             assert!(r.headers.iter().any(|(k, v)| k == "X-Content-Type-Options" && v == "nosniff"));
         }
         assert!(!CSP.contains("script-src") && CSP.contains("default-src 'none'") && CSP.contains("sandbox"));
+    }
+
+    /// Every way a page can ask the browser to resolve or contact a host before any request the CSP sees.
+    const HINTS: &str = concat!(
+        "<html><head><title>t</title>",
+        "<link rel=preconnect href=https://hint-a.example>",
+        "<link rel=\"DNS-Prefetch\" href=//hint-b.example>",
+        "<link title=\"x>y\" rel='stylesheet prefetch' href=https://hint-c.example/s.css>",
+        "<link rel=prerender href=https://hint-d.example/>",
+        "<link rel=preload as=image href=https://hint-e.example/i.png>",
+        "<link rel=modulepreload href=https://hint-f.example/m.js>",
+        "<link rel=\"pre&#99;onnect\" href=https://hint-g.example>",
+        "<link rel=stylesheet href=style.css>",
+        "</head><body><noscript><link rel=preconnect href=https://hint-h.example></noscript>",
+        "<p>text</p></body></html>"
+    );
+
+    #[test]
+    fn resource_hints_never_reach_the_browser() {
+        let r = ViewerResponse::ok("text/html", HINTS.as_bytes().to_vec(), false);
+        let body = String::from_utf8(r.body).expect("utf8");
+        assert!(!body.contains("hint-"), "a resource hint survived: {body}");
+        assert!(body.contains("style.css") && body.contains("<p>text</p>"), "ordinary content stays: {body}");
+        assert!(body.contains("<meta http-equiv=\"Content-Security-Policy\""));
+        assert!(body.contains("<meta http-equiv=\"x-dns-prefetch-control\" content=\"off\">"));
+        assert!(r.headers.iter().any(|(k, v)| k == "X-DNS-Prefetch-Control" && v == "off"));
+        // A page without hints keeps its bytes (only the head injection changes it).
+        let plain = b"<html><head><link rel=stylesheet href=a.css></head><body>b</body></html>";
+        let kept = String::from_utf8(ViewerResponse::ok("text/html", plain.to_vec(), false).body).expect("utf8");
+        assert!(kept.ends_with("<link rel=stylesheet href=a.css></head><body>b</body></html>"), "{kept}");
     }
 
     #[test]

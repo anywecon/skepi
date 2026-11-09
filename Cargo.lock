@@ -859,6 +859,7 @@ dependencies = [
  "ego-tree",
  "futures-util",
  "getrandom 0.4.3",
+ "html5ever",
  "libc",
  "llama-cpp-2",
  "percent-encoding",

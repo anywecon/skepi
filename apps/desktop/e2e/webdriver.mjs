@@ -47,6 +47,7 @@ export const BROWSER_ARGS = [
   '--disable-component-update',
   '--disable-domain-reliability',
   '--no-pings',
+  '--dns-prefetch-disable',
 ];
 
 const ELEMENT = 'element-6066-11e4-a52e-4f735466cecf';

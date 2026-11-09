@@ -482,8 +482,8 @@ pub async fn station_addresses() -> Res<Vec<LocalAddress>> {
 pub struct ApkChoice {
     pub file_name: String,
     pub size_bytes: u64,
+    /// Read from the APK's signing block, not verified: the UI shows it to compare, never as a verdict.
     pub signing_sha256: String,
-    pub official: bool,
 }
 
 /// Native picker for the APK offered on the install page (the webview never names a path).
@@ -517,7 +517,6 @@ pub async fn station_choose_apk(app: AppHandle, state: State<'_, AppState>) -> R
     let choice = ApkChoice {
         file_name: path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
         size_bytes: std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
-        official: sha == desktop_core::station::apk::RELEASE_SIGNING_SHA256,
         signing_sha256: sha,
     };
     *state.apk.lock().unwrap_or_else(|p| p.into_inner()) = Some(path);

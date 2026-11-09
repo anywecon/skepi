@@ -106,7 +106,10 @@ fn esc(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
-fn page(name: &str, size: u64, fingerprint: &str, official: bool) -> Vec<u8> {
+/// The install page shows the certificate fingerprint read from the APK and asks the user to compare
+/// it with the published one. It never claims the APK is official: the signing block is read here,
+/// not verified (anyone can copy a published certificate into an APK they signed themselves).
+fn page(name: &str, size: u64, fingerprint: &str) -> Vec<u8> {
     let fp = fingerprint
         .to_ascii_uppercase()
         .as_bytes()
@@ -115,11 +118,6 @@ fn page(name: &str, size: u64, fingerprint: &str, official: bool) -> Vec<u8> {
         .collect::<Vec<_>>()
         .join(":");
     let mb = format!("{:.1}", size as f64 / 1_048_576.0);
-    let note = if official {
-        "This fingerprint matches the published SKEPI release key."
-    } else {
-        "This fingerprint does NOT match the published SKEPI release key. Install only if you trust where it came from."
-    };
     format!(
         r#"<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -131,9 +129,9 @@ fn page(name: &str, size: u64, fingerprint: &str, official: bool) -> Vec<u8> {
 <p><a class="button" href="/skepi.apk" download="skepi.apk">Download the app ({mb} MB)</a></p>
 <p>Then open the downloaded file and allow installing from your browser or file manager when Android asks.</p>
 <h2>Check the signature</h2>
-<p>Signing certificate SHA-256 of this APK:</p>
+<p>Signing certificate SHA-256 named in this APK (read by the Station, not verified):</p>
 <p><code>{fp}</code></p>
-<p>{note} Compare it with the fingerprint the SKEPI project publishes. If it differs, do not install. Android also refuses later updates signed with another key.</p>
+<p>Compare it with the fingerprint the SKEPI project publishes. If it differs, do not install. After installing, Android verifies the signature itself and refuses later updates signed with another key.</p>
 </body></html>
 "#,
         n = esc(name),
@@ -146,15 +144,13 @@ pub struct ApkServer {
     running: Arc<AtomicBool>,
     stop: Arc<Notify>,
     pub signing_sha256: String,
-    pub official: bool,
 }
 
 impl ApkServer {
     pub async fn start(bind: SocketAddr, apk: PathBuf) -> Result<Self, String> {
         let signing = signing_cert_sha256(&apk)?;
-        let official = signing == RELEASE_SIGNING_SHA256;
         let size = std::fs::metadata(&apk).map_err(|e| e.to_string())?.len();
-        let body = Arc::new(page("SKEPI", size, &signing, official));
+        let body = Arc::new(page("SKEPI", size, &signing));
         let listener = TcpListener::bind(bind).await.map_err(|e| e.to_string())?;
         let port = listener.local_addr().map_err(|e| e.to_string())?.port();
         let running = Arc::new(AtomicBool::new(true));
@@ -236,7 +232,7 @@ impl ApkServer {
             }
             let _ = stopped_tx.send(true);
         });
-        Ok(Self { port, running, stop, signing_sha256: signing, official })
+        Ok(Self { port, running, stop, signing_sha256: signing })
     }
 
     pub fn port(&self) -> u16 {
@@ -319,6 +315,17 @@ mod tests {
         assert!(closed_at.iter().filter(|t| t.as_millis() < 1_000).count() >= 20 - MAX_CONNECTIONS, "{closed_at:?}");
         assert!(closed_at.iter().all(|t| *t < HEAD_TIMEOUT + std::time::Duration::from_secs(2)), "{closed_at:?}");
         server.stop();
+    }
+
+    #[test]
+    fn the_install_page_never_vouches_for_the_apk() {
+        // Even the published release fingerprint is only shown, never confirmed: it was read, not verified.
+        let html = String::from_utf8(page("SKEPI", 1_048_576, RELEASE_SIGNING_SHA256)).expect("utf8");
+        assert!(html.contains("7D:61:C3:82"), "the fingerprint is shown");
+        assert!(html.contains("not verified") && html.contains("Compare it with the fingerprint the SKEPI project publishes"));
+        for claim in ["matches the published", "official", "is signed by"] {
+            assert!(!html.to_ascii_lowercase().contains(claim), "no claim: {claim}");
+        }
     }
 
     #[test]

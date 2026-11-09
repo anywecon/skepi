@@ -192,8 +192,8 @@ export interface LocalAddress {
 export interface ApkChoice {
   fileName: string;
   sizeBytes: number;
+  /** Read from the APK's signing block, not verified: shown to compare with the published value. */
   signingSha256: string;
-  official: boolean;
 }
 
 export interface StationInfo {
@@ -203,7 +203,6 @@ export interface StationInfo {
   certSha256: string;
   apkUrl: string | null;
   apkCertSha256: string | null;
-  apkOfficial: boolean | null;
   packs: string[];
 }
 

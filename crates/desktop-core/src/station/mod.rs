@@ -59,7 +59,6 @@ pub struct StationInfo {
     pub cert_sha256: String,
     pub apk_url: Option<String>,
     pub apk_cert_sha256: Option<String>,
-    pub apk_official: Option<bool>,
     pub packs: Vec<String>,
 }
 
@@ -188,7 +187,6 @@ impl Station {
             cert_sha256: cert.sha256.clone(),
             apk_url: None,
             apk_cert_sha256: None,
-            apk_official: None,
             packs: rows.iter().map(|r| r.id.clone()).collect(),
         };
         if let Some(apk_path) = apk_path {
@@ -196,7 +194,6 @@ impl Station {
                 Ok(a) => {
                     info.apk_url = Some(format!("http://{host}:{}/", a.port()));
                     info.apk_cert_sha256 = Some(a.signing_sha256.clone());
-                    info.apk_official = Some(a.official);
                     *self.apk.lock().unwrap_or_else(|p| p.into_inner()) = Some(a);
                 }
                 Err(e) => {

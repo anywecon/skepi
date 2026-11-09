@@ -396,8 +396,8 @@ export interface Messages {
       apk: string;
       chooseApk: string;
       apkChosen: (name: string) => string;
-      apkOfficial: string;
-      apkUnofficial: string;
+      /** The certificate SHA-256 read from the APK (not verified), to compare with the published value. */
+      apkFingerprint: (sha256: string) => string;
       start: string;
       stop: string;
       starting: string;

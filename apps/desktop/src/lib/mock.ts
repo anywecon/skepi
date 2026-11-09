@@ -198,7 +198,6 @@ export function mockBackend(): Backend {
     certSha256: SHA('9'),
     apkUrl: withApk ? `http://${host}:45124/` : null,
     apkCertSha256: withApk ? '7d61c38241b178f84b12dd9a67af6b60b56159b1a0ff067fe672db45dd45447e' : null,
-    apkOfficial: withApk ? true : null,
     packs: packIds,
   });
 
@@ -290,7 +289,7 @@ export function mockBackend(): Backend {
       return POIS;
     },
     station_addresses: () => [{ ip: '192.168.1.20', adapter: 'Wi-Fi', virtualAdapter: false }],
-    station_choose_apk: () => ({ fileName: 'skepi.apk', sizeBytes: 50_000_000, signingSha256: '7d61c38241b178f84b12dd9a67af6b60b56159b1a0ff067fe672db45dd45447e', official: true }),
+    station_choose_apk: () => ({ fileName: 'skepi.apk', sizeBytes: 50_000_000, signingSha256: '7d61c38241b178f84b12dd9a67af6b60b56159b1a0ff067fe672db45dd45447e' }),
     station_start: (a) => {
       const ids = (a.packIds as string[]).slice();
       record.station = { manifest: String(a.manifest), packIds: ids };

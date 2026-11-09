@@ -178,7 +178,7 @@ export function StationScreen() {
           />
           {apk && (
             <span data-testid="station-apk">
-              {t.desktop.station.apkChosen(apk.fileName)} · {apk.official ? t.desktop.station.apkOfficial : t.desktop.station.apkUnofficial}
+              {t.desktop.station.apkChosen(apk.fileName)} · {t.desktop.station.apkFingerprint(apk.signingSha256)}
             </span>
           )}
         </div>

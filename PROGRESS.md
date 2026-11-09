@@ -1,6 +1,26 @@
-**Current:** v0.2.1-preview released 2026-11-05 (tag on `ebd321e`, https://github.com/Fiouri/skepi/releases/tag/v0.2.1-preview); MR 53588 updated to the 0.2.1-preview recipe (`b879aa18`), waiting for review; iOS flows with the new waits not run yet
-**Next step:** read the dispatched CI run on main for `ios-e2e` (recent nightlies start about 09:30 UTC, not at the 02:23 UTC in the cron). Owner: paste the description in `docs/fdroid/merge-request.md` into MR 53588 (the MR still says 0.2.0-preview). Still open from before: delete `SKEPI_RELEASE_STORE_PASSWORD` / `SKEPI_RELEASE_KEY_PASSWORD` from `~/.gradle/gradle.properties`; watch first.aid@ifrc.org; follow MR 53588
-**Last session:** 2026-11-05 — v0.2.1-preview published by the owner, signature copy PASS on the downloaded APK (owner); asset digests match; temp dirs deleted; verify 49/49
+**Current:** hardening pass after v0.2.1-preview — 17 local commits on `8c2e79d` (not pushed); desktop gate green apart from the Norton-blocked `station_server` tests; Android device tests not run (S23 not connected)
+**Next step:** owner: connect the S23 (USB or wireless debugging); then `connectedAndroidTest` and Maestro in airplane mode with the device lock, push to main, read CI (`desktop-windows` runs the 5 `station_server` tests Norton blocks here). Decide on v0.2.2-preview after that. Still open from before: delete `SKEPI_RELEASE_STORE_PASSWORD` / `SKEPI_RELEASE_KEY_PASSWORD` from `~/.gradle/gradle.properties`; MR 53588 description
+**Last session:** 2026-11-09 — 14 hardening commits + 3 review follow-ups, each with a regression test; verify 50/50, clippy, fmt, deny, cargo test (all but 5 Norton-blocked), tauri build, smoke 35/35, Playwright 17/17, unsigned APK `140d69ef…`, gitleaks clean, osv unchanged
+
+
+## Hardening pass 2026-11-09 (local commits, nothing pushed, no tag, no release)
+
+- Done (one commit each, regression test first; "confirmed" = the test failed on the old code):
+  - packs bound to their file identity, not their size (migration 4 `file_stamp`; re-hash on any change); Android 7–10 packs in internal storage — confirmed (desktop + mobile tests).
+  - a second ZIM with an open archive's UUID is refused; verified packs open first — confirmed (desktop test).
+  - resource hints stripped from sealed articles, DNS prefetch off — hints reached the page (confirmed); egress itself not observed with v0.2.1 (session net log of a crafted ZIM page: no hint host); the new smoke check passes.
+  - crafted ZIM content can no longer end the desktop process: iterative text walk (stack overflow before: confirmed), byte accessors and lossy strings, cxx trycatch with catch(...) (Xapian path not reproduced).
+  - imports hashed after the final move (confirmed, mobile test); release builds ignore ICU data in the content folder.
+  - unauthenticated LAN connections have their own small budget (desktop Station, Android host, APK pages); test Norton-blocked here, Android test needs the S23.
+  - Station APK page shows the certificate fingerprint without calling an APK official (confirmed by source).
+  - places connections cannot ATTACH (confirmed: read another file's row before).
+  - one download at a time per pack on the desktop (by source).
+  - the Unverified label fails closed for deep links; zim:// authority must be exactly the archive id (confirmed by test of the old predicate).
+  - signing takes `-Tag` and accepts only the android-repro artifact of the tag's commit, downloaded again from the run (checked read-only against the v0.2.1-preview run). The repository's current name on GitHub is `anywecon/skepi` (Fiouri/skepi redirects).
+  - mobile downloads stop at the catalog size (confirmed); the held-out runner asks for consent (confirmed).
+- Verified: see "Last session"; code review of the diff: 2 MUST-FIX (Android legacy move, pre-auth deadline at accept) fixed.
+- Not run: `connectedAndroidTest` and Maestro on the S23 (device not connected); iOS/macOS builds (CI only).
+- Open follow-ups: macOS `is_viewer_url` exact per platform; iOS `SKZArchive` search/suggest `catch (...)`; GGUF/llama.cpp parsing review (not done); one LAN peer with many addresses can still fill the total pre-auth budget; a very slow reader keeps an APK page slot; `scripts/provision.ps1` still pushes to external storage on Android 7–10.
 
 ## v0.2.1-preview released 2026-11-05
 

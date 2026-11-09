@@ -3,6 +3,9 @@
   Signs the reproducible unsigned APK from CI (android-repro) with the SKEPI release key, locally, and
   proves that the signed APK holds exactly the CI artifact's contents. docs/release-process.md.
 
+  0. Provenance (ReleaseProvenance.psm1): -Tag names a commit on GitHub, and the unsigned APK is byte
+     for byte the artifact of a successful android-repro run of this repository (push or
+     workflow_dispatch on main) for that commit, downloaded again from the run. Before any password.
   1. The unsigned APK matches its SHA256SUMS.txt (from the same artifact) and carries no signature.
   2. It is already zip-aligned (4 bytes, native libraries on 16 KB pages): nothing is rewritten.
   3. apksigner signs it with the key named in ~/.gradle/gradle.properties (SKEPI_RELEASE_STORE_FILE,
@@ -25,11 +28,16 @@
 
 .EXAMPLE
   gh run download <run-id> --repo Fiouri/skepi -n <artifact> -D $env:TEMP\skepi\release
-  ./scripts/release/sign-release-apk.ps1 -Unsigned $env:TEMP\skepi\release\skepi-0.1.0-preview-arm64-unsigned.apk
+  ./scripts/release/sign-release-apk.ps1 -Tag v0.1.0-preview -Unsigned $env:TEMP\skepi\release\skepi-0.1.0-preview-arm64-unsigned.apk
 #>
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)][string]$Unsigned,
+  # The release tag (already pushed): the APK must be the CI artifact of the commit it names.
+  [Parameter(Mandatory = $true)][ValidatePattern('^v\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$')][string]$Tag,
+  [string]$Repo = 'Fiouri/skepi',
+  # The android-repro run the APK was downloaded from (default: the newest qualifying run).
+  [string]$RunId = '',
   # Default: skepi-<version>-arm64.apk next to the unsigned APK (the GitHub release asset name).
   [string]$Out = '',
   [string]$GradleProperties = (Join-Path $env:USERPROFILE '.gradle\gradle.properties'),
@@ -47,6 +55,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $compare = Join-Path $root 'scripts\ci\apk-compare.py'
 Import-Module (Join-Path $root 'tools\Signing.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'ReleaseProvenance.psm1') -Force
 
 function Invoke-Checked([string]$What, [scriptblock]$Command) {
   & $Command
@@ -54,6 +63,7 @@ function Invoke-Checked([string]$What, [scriptblock]$Command) {
 }
 
 $Unsigned = (Resolve-Path $Unsigned).Path
+if ([IO.Path]::GetFileName($Unsigned) -ne "skepi-$($Tag.Substring(1))-arm64-unsigned.apk") { throw "expected skepi-$($Tag.Substring(1))-arm64-unsigned.apk for $Tag, got $Unsigned" }
 if (-not $Out) {
   $name = [IO.Path]::GetFileName($Unsigned) -replace '-unsigned\.apk$', '.apk'
   if ($name -eq [IO.Path]::GetFileName($Unsigned)) { throw "expected a file named *-unsigned.apk, got $Unsigned" }
@@ -81,6 +91,9 @@ $actual = (Get-FileHash -Algorithm SHA256 $Unsigned).Hash.ToLowerInvariant()
 if ($actual -ne $expected) { throw "SHA-256 mismatch: $actual, SHA256SUMS.txt says $expected" }
 Write-Host "unsigned APK: $actual (matches SHA256SUMS.txt)"
 Invoke-Checked 'unsigned check' { python $compare unsigned $Unsigned }
+
+# 0. Provenance: the CI artifact of the tag's commit, not just a file with a matching checksum list.
+Assert-ReleaseProvenance -Unsigned $Unsigned -Tag $Tag -Repo $Repo -RunId $RunId
 
 # 2. Alignment (AGP writes the unsigned APK aligned; apksigner keeps it with --alignment-preserved).
 Invoke-Checked 'zipalign check' { & $zipalign -c -P 16 4 $Unsigned }

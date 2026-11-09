@@ -52,9 +52,13 @@ came as prebuilt AARs from `node_modules`). Every CMake build loads `apps/mobile
    ```
 5. **Sign locally (owner).**
    ```powershell
-   ./scripts/release/sign-release-apk.ps1 -Unsigned $env:TEMP\skepi\release\skepi-<version>-arm64-unsigned.apk
+   ./scripts/release/sign-release-apk.ps1 -Tag v<version> -RunId <run-id> -Unsigned $env:TEMP\skepi\release\skepi-<version>-arm64-unsigned.apk
    ```
-   The script checks the SHA-256 against `SHA256SUMS.txt`, that the APK is unsigned and zip-aligned (4
+   Before anything else (no password yet) it checks provenance (`scripts/release/ReleaseProvenance.psm1`,
+   unit test `scripts/release/test-release-provenance.ps1`): the pushed tag names a commit, the run is a
+   successful `android-repro.yml` run of this repository (push or `workflow_dispatch` on `main`, not a
+   fork), its artifact is `skepi-<version>-vc<code>-<commit12>-unsigned` for that commit, and the APK is
+   byte for byte the APK in that artifact, downloaded again from the run. Then it checks the SHA-256 against `SHA256SUMS.txt`, that the APK is unsigned and zip-aligned (4
    bytes, 16 KB pages), signs with `apksigner` (APK Signature Scheme v2 only, like the Gradle release
    build; the key file and alias come from `~/.gradle/gradle.properties`, the passwords are prompted at
    run time by `tools/Signing.psm1` and passed to apksigner as process env vars only), then checks that

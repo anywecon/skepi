@@ -182,6 +182,9 @@ class SealingTest {
       "zim://not-an-open-archive/index" to 403,
       "zim:///index" to 403,
       "zim://$archiveId/" to 403,
+      // The authority must be exactly the archive id (the app labels content by that string).
+      "zim://x@$archiveId/index" to 403,
+      "zim://$archiveId:80/index" to 403,
     )
     for ((url, status) in cases) {
       val response = ZimSchemeHandler.handle(Uri.parse(url))

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useStyles, UnverifiedLabel } from '../components/ui';
 import { useMessages } from '../lib/i18n';
+import { isArchiveId } from '../lib/openArchives';
 import { usePrefs } from '../lib/prefs';
 
 export default function ArticleScreen() {
@@ -29,6 +30,17 @@ export default function ArticleScreen() {
     startedAt.current = performance.now();
     setOpenMs(null);
   }, [url]);
+
+  // Deep links carry the archive id: anything but a UUID (another spelling, user info, a port) never opens.
+  if (!isArchiveId(params.archiveId)) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.muted} testID="content-missing">
+          {t.content.missing}
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.fill}>

@@ -24,3 +24,16 @@ export async function openZimPacks<T extends { path: string }>(
   }
   return out;
 }
+
+/** A ZIM archive id as the native registries report it (a UUID). Anything else never opens. */
+export function isArchiveId(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
+/**
+ * The "Unverified" label fails closed: it is hidden only when an open archive with exactly this id is
+ * verified. An id the app does not know (a deep link with another spelling of an archive's id) shows it.
+ */
+export function showsUnverifiedLabel(archives: readonly { archiveId: string; verified: boolean }[], archiveId: string): boolean {
+  return !archives.some((a) => a.archiveId === archiveId && a.verified);
+}

@@ -38,6 +38,9 @@ internal object ZimSchemeHandler {
   fun parse(url: Uri): Target? {
     if (url.scheme != SCHEME) return null
     val archiveId = url.host?.takeIf { it.isNotEmpty() } ?: return null
+    // The authority is the archive id and nothing else: no user info, no port (the app labels content
+    // by the id it put in the URL, so the host must be exactly that string).
+    if (url.encodedAuthority != archiveId) return null
     // Uri.path is already percent-decoded. ZIM paths are flat keys: reject NULs and any dot
     // segment, including backslash-separated and double-encoded (%252e%252e) forms.
     val path = url.path?.removePrefix("/")?.takeIf { it.isNotEmpty() } ?: return null

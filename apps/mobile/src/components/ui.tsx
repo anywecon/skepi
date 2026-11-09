@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useContent } from '../lib/content';
 import { useMessages } from '../lib/i18n';
+import { showsUnverifiedLabel } from '../lib/openArchives';
 import { useTheme } from '../lib/theme';
 
 function makeStyles(c: Theme) {
@@ -165,7 +166,8 @@ export function ContentGate({ children }: { children: ReactNode }) {
 export function UnverifiedLabel({ archiveId }: { archiveId: string }) {
   const t = useMessages();
   const styles = useStyles();
-  const unverified = useContent((s) => s.archives.some((a) => a.archiveId === archiveId && !a.verified));
+  // Fails closed: hidden only for an open, verified archive with exactly this id.
+  const unverified = useContent((s) => showsUnverifiedLabel(s.archives, archiveId));
   if (!unverified) return null;
   return (
     <Text style={styles.unverified} testID="unverified-label">

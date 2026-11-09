@@ -1,6 +1,6 @@
 import type { InstalledPack } from '@skepi/contracts';
 import { describe, expect, it } from 'vitest';
-import { openZimPacks } from '../src/lib/openArchives';
+import { isArchiveId, openZimPacks, showsUnverifiedLabel } from '../src/lib/openArchives';
 
 const UUID = '0f9e7c1a-1111-4222-8333-444455556666';
 
@@ -49,5 +49,28 @@ describe('openZimPacks', () => {
   it('opens nothing unverified without consent', async () => {
     const opened = await openZimPacks([pack('import-bbbb', false, null)], registry((p) => p));
     expect(opened).toEqual([]);
+  });
+});
+
+describe('the Unverified label fails closed', () => {
+  const archives = [
+    { archiveId: UUID, verified: true },
+    { archiveId: '11111111-2222-4333-8444-555566667777', verified: false },
+  ];
+
+  it('is hidden only for an open, verified archive with exactly that id', () => {
+    expect(showsUnverifiedLabel(archives, UUID)).toBe(false);
+    expect(showsUnverifiedLabel(archives, '11111111-2222-4333-8444-555566667777')).toBe(true);
+  });
+
+  it('shows for an id the app does not know, however the deep link spelled it', () => {
+    for (const id of [UUID.toUpperCase(), `x@${UUID}`, `${UUID}:80`, '', 'not-an-archive']) {
+      expect(showsUnverifiedLabel(archives, id)).toBe(true);
+    }
+  });
+
+  it('accepts only UUID archive ids', () => {
+    expect(isArchiveId(UUID)).toBe(true);
+    for (const id of [`x@${UUID}`, `${UUID}:80`, `${UUID}/`, '', 'zim']) expect(isArchiveId(id)).toBe(false);
   });
 });

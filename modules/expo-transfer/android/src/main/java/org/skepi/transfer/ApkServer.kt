@@ -9,11 +9,16 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
-import java.util.concurrent.Executors
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicBoolean
 
 private const val TAG = "SkepiApkServer"
+
+/** A download that accepts no bytes for this long is closed. */
+private const val WRITE_STALL_MS = 30_000L
 
 /**
  * App propagation (Android only): a phone without SKEPI opens `http://<host>:<port>/` in any browser
@@ -31,7 +36,10 @@ class ApkServer(
 ) {
   private val running = AtomicBoolean(false)
   private var server: ServerSocket? = null
-  private val pool = Executors.newFixedThreadPool(2) { r -> Thread(r, "skepi-apk-conn").apply { isDaemon = true } }
+  // Two workers and a short bounded queue; a peer may hold a few sockets without a request head, each
+  // for a few seconds, and a download that stops reading is closed.
+  private val pool = ThreadPoolExecutor(2, 2, 0L, TimeUnit.MILLISECONDS, ArrayBlockingQueue(8)) { r -> Thread(r, "skepi-apk-conn").apply { isDaemon = true } }
+  private val gate = PreAuthGate(PREAUTH_PER_PEER, PREAUTH_DEADLINE_MS)
 
   val port: Int
     get() = server?.localPort ?: -1
@@ -49,9 +57,15 @@ class ApkServer(
         } catch (_: IOException) {
           break
         }
+        val ticket = gate.admit(s)
+        if (ticket == null) {
+          s.close()
+          continue
+        }
         try {
-          pool.execute { serve(s) }
+          pool.execute { serve(s, ticket) }
         } catch (_: RejectedExecutionException) {
+          ticket.release()
           s.close()
         }
       }
@@ -66,6 +80,7 @@ class ApkServer(
     } catch (_: IOException) {
     }
     pool.shutdownNow()
+    gate.shutdown()
   }
 
   private fun page(): ByteArray {
@@ -88,11 +103,12 @@ class ApkServer(
 """.toByteArray(Charsets.UTF_8)
   }
 
-  private fun serve(socket: Socket) {
+  private fun serve(socket: Socket, ticket: PreAuthGate.Ticket) {
     socket.use { s ->
       try {
-        s.soTimeout = 30_000
+        s.soTimeout = PREAUTH_DEADLINE_MS.toInt()
         val req = Http.readRequest(s.getInputStream())
+        ticket.release()
         val out = s.getOutputStream()
         when {
           req.method != "GET" -> text(out, 405, "Method Not Allowed")
@@ -112,13 +128,28 @@ class ApkServer(
                 "Content-Disposition" to "attachment; filename=\"skepi.apk\"",
               ),
             )
-            FileInputStream(apk).use { it.copyTo(out, 256 * 1024) }
+            val watchdog = gate.watchdog(s, WRITE_STALL_MS)
+            try {
+              FileInputStream(apk).use { input ->
+                val buf = ByteArray(256 * 1024)
+                while (true) {
+                  val n = input.read(buf)
+                  if (n < 0) break
+                  out.write(buf, 0, n)
+                  watchdog.progress()
+                }
+              }
+            } finally {
+              watchdog.cancel()
+            }
           }
           else -> text(out, 404, "Not Found")
         }
         out.flush()
       } catch (e: IOException) {
         Log.w(TAG, "connection: ${e.message}")
+      } finally {
+        ticket.release()
       }
     }
   }

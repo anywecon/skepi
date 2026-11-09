@@ -11,15 +11,21 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketException
 import java.security.MessageDigest
+import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import javax.net.ssl.SSLServerSocket
 import javax.net.ssl.SSLSocket
 
 private const val TAG = "SkepiTransfer"
+
+/** Unauthenticated sockets per peer address, and their deadline for the TLS handshake and the request head. */
+internal const val PREAUTH_PER_PEER = 4
+internal const val PREAUTH_DEADLINE_MS = 5_000L
 
 /**
  * Faults for the P2P E2E (debug builds only; the module refuses them in release builds): a chunk
@@ -52,6 +58,7 @@ class TransferServer(
   private val onStopped: (reason: String) -> Unit = {},
 ) {
   private val packs: Map<String, File> = packs.toMap()
+  private val gate = PreAuthGate(PREAUTH_PER_PEER, PREAUTH_DEADLINE_MS)
   private val running = AtomicBoolean(false)
   private val lastActivity = AtomicLong(System.currentTimeMillis())
   private val requests = AtomicLong(0)
@@ -74,7 +81,8 @@ class TransferServer(
     ss.bind(InetSocketAddress(bindAddress, port), 8)
     server = ss
     lastActivity.set(System.currentTimeMillis())
-    val pool = Executors.newFixedThreadPool(4) { r -> Thread(r, "skepi-p2p-conn").apply { isDaemon = true } }
+    // Four workers and a short bounded queue: extra connections are refused (the phone retries the chunk).
+    val pool = ThreadPoolExecutor(4, 4, 0L, TimeUnit.MILLISECONDS, ArrayBlockingQueue(16)) { r -> Thread(r, "skepi-p2p-conn").apply { isDaemon = true } }
     workers = pool
     Thread({ acceptLoop(ss, pool) }, "skepi-p2p-accept").apply { isDaemon = true }.start()
     Thread({ idleWatch() }, "skepi-p2p-idle").apply { isDaemon = true }.start()
@@ -90,6 +98,7 @@ class TransferServer(
     } catch (_: IOException) {
     }
     workers?.shutdownNow()
+    gate.shutdown()
     Log.i(TAG, "host stopped: $reason")
     onStopped(reason)
   }
@@ -133,9 +142,16 @@ class TransferServer(
       } catch (_: IOException) {
         break
       }
+      // A peer without the token may hold only a few sockets, each for a few seconds.
+      val ticket = gate.admit(socket)
+      if (ticket == null) {
+        socket.close()
+        continue
+      }
       try {
-        pool.execute { serve(socket) }
+        pool.execute { serve(socket, ticket) }
       } catch (_: RejectedExecutionException) {
+        ticket.release()
         socket.close()
       }
     }
@@ -146,22 +162,32 @@ class TransferServer(
     return MessageDigest.isEqual(given.toByteArray(Charsets.US_ASCII), token.toByteArray(Charsets.US_ASCII))
   }
 
-  private fun serve(socket: Socket) {
+  private fun serve(socket: Socket, ticket: PreAuthGate.Ticket) {
     socket.use { s ->
       try {
-        s.soTimeout = 30_000
+        s.soTimeout = PREAUTH_DEADLINE_MS.toInt()
         (s as SSLSocket).startHandshake()
         val req = Http.readRequest(s.getInputStream())
+        val out = s.getOutputStream()
+        if (!authorized(req.headers["authorization"])) {
+          ticket.release()
+          record(req.method, req.path.take(120), plain(out, 401, "Unauthorized"))
+          out.flush()
+          return
+        }
+        ticket.release()
+        s.soTimeout = 30_000
         lastActivity.set(System.currentTimeMillis())
         requests.incrementAndGet()
-        val out = s.getOutputStream()
         val status = route(req, out)
         record(req.method, req.path.take(120), status)
         out.flush()
       } catch (e: SocketException) {
-        // Client went away (or the session stopped): nothing to answer.
+        // Client went away, the pre-auth deadline closed it, or the session stopped: nothing to answer.
       } catch (e: IOException) {
         Log.w(TAG, "connection: ${e.message}")
+      } finally {
+        ticket.release()
       }
     }
   }

@@ -146,7 +146,9 @@ class ExpoTransferModule : Module() {
         }
         val cert = SessionCert.create()
         val token = hex(16)
-        val server = TransferServer(cert, token, manifest, packs, options.idleTimeoutMs.toLong()) { reason ->
+        // Listen only on the address in the QR code (the chosen Wi-Fi or hotspot), not on every interface.
+        val bind = InetAddress.getByName(address)
+        val server = TransferServer(cert, token, manifest, packs, options.idleTimeoutMs.toLong(), bind) { reason ->
           network.stopHotspot()
           apkServer?.stop()
           sendEvent("onHostStopped", mapOf("reason" to reason))
@@ -162,7 +164,7 @@ class ExpoTransferModule : Module() {
           apkSha = signingSha256()
           val pkg = context.packageManager.getPackageInfo(context.packageName, 0)
           val label = context.applicationInfo.loadLabel(context.packageManager).toString()
-          val apk = ApkServer(File(info.sourceDir), label, pkg.versionName ?: "", apkSha)
+          val apk = ApkServer(File(info.sourceDir), label, pkg.versionName ?: "", apkSha, bind)
           apkUrl = "http://$address:${apk.start()}/"
           apkServer = apk
         }

@@ -215,3 +215,35 @@ fn session_certificates_are_fresh() {
     assert_eq!(a.sha256, sha256_hex(&a.cert_der));
     assert_eq!(a.sha256.len(), 64);
 }
+
+/// Opens `n` TCP connections from `from` that never start TLS (a peer without the token holding sockets).
+async fn idle_sockets(from: &str, to: SocketAddr, n: usize) -> Option<Vec<TcpStream>> {
+    let mut out = Vec::new();
+    for _ in 0..n {
+        let socket = tokio::net::TcpSocket::new_v4().ok()?;
+        // Another loopback address stands for another device (macOS has only 127.0.0.1 by default).
+        socket.bind(format!("{from}:0").parse().ok()?).ok()?;
+        out.push(socket.connect(to).await.ok()?);
+    }
+    Some(out)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn idle_unauthenticated_sockets_do_not_lock_out_phones() {
+    let (_server, addr, pin, _pack, _dir) = start(Duration::from_secs(60)).await;
+    // More idle sockets than the phones' 32 connection slots.
+    let Some(mut idle) = idle_sockets("127.0.0.2", addr, 64).await else {
+        eprintln!("skipped: cannot bind 127.0.0.2 on this host");
+        return;
+    };
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let r = tokio::time::timeout(Duration::from_secs(10), request(addr, &pin, "GET", "/manifest", Some(TOKEN), None))
+        .await
+        .expect("served while the idle sockets are open")
+        .expect("request");
+    assert_eq!(r.status, 200);
+    // Idle sockets are closed after the short pre-auth deadline, not after the 30 s transfer timeout.
+    let mut buf = [0u8; 1];
+    let closed = tokio::time::timeout(Duration::from_secs(8), idle[0].read(&mut buf)).await;
+    assert!(matches!(closed, Ok(Ok(0)) | Ok(Err(_))), "closed within the pre-auth deadline: {closed:?}");
+}

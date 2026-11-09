@@ -78,6 +78,39 @@ class TransferServerTest {
   }
 
   @Test
+  fun idleUnauthenticatedSocketsDoNotLockOutPhones() {
+    // Another device on the network (127.0.0.2 on the loopback /8) opens sockets and never sends a byte.
+    val idle = (1..32).mapNotNull {
+      try {
+        Socket().apply {
+          bind(InetSocketAddress("127.0.0.2", 0))
+          connect(InetSocketAddress("127.0.0.1", serverPort), 2_000)
+        }
+      } catch (_: IOException) {
+        null
+      }
+    }
+    try {
+      Thread.sleep(300)
+      val started = System.nanoTime()
+      assertEquals(String(manifest), client().fetchManifest())
+      val ms = (System.nanoTime() - started) / 1_000_000
+      assertTrue("served while the idle sockets are open (${ms} ms)", ms < 4_000)
+      // Each idle socket is closed after the pre-auth deadline, not after the 30 s transfer timeout.
+      val first = idle.first()
+      first.soTimeout = 8_000
+      val read = try {
+        first.getInputStream().read()
+      } catch (_: IOException) {
+        -1
+      }
+      assertEquals(-1, read)
+    } finally {
+      idle.forEach { it.close() }
+    }
+  }
+
+  @Test
   fun servesTheManifestAndChunksOverPinnedTls13() {
     assertEquals(String(manifest), client().fetchManifest())
     val partial = File(dir, "recv.partial")

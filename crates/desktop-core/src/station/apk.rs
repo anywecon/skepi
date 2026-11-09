@@ -12,7 +12,13 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
-use tokio::sync::Notify;
+use tokio::sync::{Notify, Semaphore, watch};
+
+/// The APK page serves at most this many connections at once (more are closed at accept).
+const MAX_CONNECTIONS: usize = 8;
+/// Deadline for the request head; a download that accepts no bytes for `WRITE_STALL` is closed.
+const HEAD_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+const WRITE_STALL: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// docs/release-signing.md: SHA-256 of the release signing certificate of org.skepi.app.
 pub const RELEASE_SIGNING_SHA256: &str = "7d61c38241b178f84b12dd9a67af6b60b56159b1a0ff067fe672db45dd45447e";
@@ -154,6 +160,9 @@ impl ApkServer {
         let running = Arc::new(AtomicBool::new(true));
         let stop = Arc::new(Notify::new());
         let (r, st) = (running.clone(), stop.clone());
+        let permits = Arc::new(Semaphore::new(MAX_CONNECTIONS));
+        // Ends every connection task when the page stops sharing.
+        let (stopped_tx, stopped_rx) = watch::channel(false);
         tokio::spawn(async move {
             loop {
                 let accepted = tokio::select! {
@@ -163,12 +172,18 @@ impl ApkServer {
                 if !r.load(Ordering::SeqCst) {
                     break;
                 }
-                let Ok((mut tcp, _)) = accepted else { continue };
+                let Ok((mut tcp, _)) = accepted else {
+                    // Out of descriptors or similar: do not spin.
+                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                    continue;
+                };
+                let Ok(permit) = permits.clone().try_acquire_owned() else { continue };
                 let (body, apk) = (body.clone(), apk.clone());
+                let mut stopped = stopped_rx.clone();
                 tokio::spawn(async move {
-                    let timeout = std::time::Duration::from_secs(30);
-                    let Ok(Ok(req)) = tokio::time::timeout(timeout, super::http::read_request(&mut tcp)).await else { return };
-                    let result: std::io::Result<()> = async {
+                    let _permit = permit;
+                    let Ok(Ok(req)) = tokio::time::timeout(HEAD_TIMEOUT, super::http::read_request(&mut tcp)).await else { return };
+                    let serve = async {
                         if req.method != "GET" {
                             super::http::plain(&mut tcp, 405, "Method Not Allowed").await?;
                         } else if req.path == "/" {
@@ -198,16 +213,28 @@ impl ApkServer {
                                 ],
                             )
                             .await?;
-                            tokio::io::copy(&mut f, &mut tcp).await?;
+                            let mut buf = vec![0u8; 256 * 1024];
+                            loop {
+                                let n = tokio::io::AsyncReadExt::read(&mut f, &mut buf).await?;
+                                if n == 0 {
+                                    break;
+                                }
+                                tokio::time::timeout(WRITE_STALL, tcp.write_all(&buf[..n]))
+                                    .await
+                                    .map_err(|_| std::io::Error::other("write stalled"))??;
+                            }
                         } else {
                             super::http::plain(&mut tcp, 404, "Not Found").await?;
                         }
                         tcp.flush().await
+                    };
+                    tokio::select! {
+                        _ = serve => {}
+                        _ = stopped.wait_for(|s| *s) => {}
                     }
-                    .await;
-                    let _ = result;
                 });
             }
+            let _ = stopped_tx.send(true);
         });
         Ok(Self { port, running, stop, signing_sha256: signing, official })
     }
@@ -256,6 +283,42 @@ mod tests {
         eocd.extend(0u16.to_le_bytes());
         apk.extend(eocd);
         apk
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn the_apk_page_caps_and_times_out_idle_connections() {
+        use tokio::io::AsyncReadExt;
+        let dir = tempfile::tempdir().expect("tmp");
+        let apk = dir.path().join("skepi.apk");
+        std::fs::write(&apk, fake_apk(b"certificate")).expect("apk");
+        let server = ApkServer::start("127.0.0.1:0".parse().expect("addr"), apk).await.expect("start");
+        let addr: SocketAddr = format!("127.0.0.1:{}", server.port()).parse().expect("addr");
+        let mut idle = Vec::with_capacity(20);
+        for _ in 0..20 {
+            idle.push(tokio::net::TcpStream::connect(addr).await.expect("connect"));
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        let started = std::time::Instant::now();
+        let waits: Vec<_> = idle
+            .into_iter()
+            .map(|mut s| {
+                tokio::spawn(async move {
+                    let mut b = [0u8; 1];
+                    let r = tokio::time::timeout(std::time::Duration::from_secs(8), s.read(&mut b)).await;
+                    (matches!(r, Ok(Ok(0)) | Ok(Err(_))), started.elapsed())
+                })
+            })
+            .collect();
+        let mut closed_at = Vec::new();
+        for w in waits {
+            let (closed, at) = w.await.expect("join");
+            assert!(closed, "every idle connection is closed");
+            closed_at.push(at);
+        }
+        // Beyond the cap they are closed at once; the others after the head deadline, not after 30 s.
+        assert!(closed_at.iter().filter(|t| t.as_millis() < 1_000).count() >= 20 - MAX_CONNECTIONS, "{closed_at:?}");
+        assert!(closed_at.iter().all(|t| *t < HEAD_TIMEOUT + std::time::Duration::from_secs(2)), "{closed_at:?}");
+        server.stop();
     }
 
     #[test]

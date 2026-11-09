@@ -124,3 +124,23 @@ fn same_size_replacement_by_rename_with_restored_mtime_loses_verified() {
     assert_eq!(changed, vec![row.id.clone()]);
     assert!(!after.verified);
 }
+
+#[tokio::test]
+async fn a_pack_downloads_once_at_a_time() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let s = Arc::new(store(dir.path()));
+    let http = desktop_core::download::Http::new().expect("http");
+    let slot = s.begin_download("test-smoke-en").expect("first download");
+    // A second download of the same pack is refused before it touches the network or the partial file.
+    let second = desktop_core::download::download_pack(s.clone(), &http, "test-smoke-en", Arc::default(), |_| {}).await;
+    assert!(
+        matches!(second, Err(desktop_core::content::ContentError::Download(ref m)) if m.contains("already downloading")),
+        "{:?}",
+        second.err()
+    );
+    assert!(!s.tmp_dir().join("eval-smoke-en.zim.partial").exists());
+    // Another pack is not blocked; the same pack again once the first download ended.
+    drop(s.begin_download("test-mirror-fallback").expect("other pack"));
+    drop(slot);
+    drop(s.begin_download("test-smoke-en").expect("after the first ended"));
+}

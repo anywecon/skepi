@@ -237,6 +237,8 @@ pub async fn download_pack(
     mut on: impl FnMut(DownloadProgress) + Send,
 ) -> Result<PackRow, ContentError> {
     let entry = store.download_entry(pack_id)?;
+    // Held until this function returns: no second download of this pack shares the partial file.
+    let _slot = store.begin_download(&entry.id)?;
     store.check_space(entry.size_bytes)?;
     let partial = store.tmp_dir().join(format!("{}.partial", entry.file));
     let total = entry.size_bytes;

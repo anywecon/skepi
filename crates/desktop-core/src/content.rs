@@ -111,6 +111,20 @@ pub struct ContentStore {
     root: RwLock<PathBuf>,
     embedded: EmbeddedCatalog,
     state: RwLock<CatalogState>,
+    /// Packs with a download in flight: each pack has one partial file, so one download at a time.
+    downloading: Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
+}
+
+/// Held for the whole download of one pack; dropping it lets the next download of that pack start.
+pub struct DownloadSlot {
+    id: String,
+    set: Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
+}
+
+impl Drop for DownloadSlot {
+    fn drop(&mut self) {
+        self.set.lock().unwrap_or_else(|p| p.into_inner()).remove(&self.id);
+    }
 }
 
 fn kind_of(dir: &str, name: &str) -> Option<PackKind> {
@@ -138,7 +152,14 @@ impl ContentStore {
         for d in DIRS {
             std::fs::create_dir_all(root.join(d))?;
         }
-        let s = Self { db, app_data, root: RwLock::new(root), embedded, state: RwLock::new(CatalogState::default()) };
+        let s = Self {
+            db,
+            app_data,
+            root: RwLock::new(root),
+            embedded,
+            state: RwLock::new(CatalogState::default()),
+            downloading: Arc::default(),
+        };
         s.load_catalog()?;
         Ok(s)
     }
@@ -574,6 +595,16 @@ impl ContentStore {
 
     pub fn set_consent(&self, id: &str) -> Result<(), ContentError> {
         Ok(self.db.set_consent(id, Some(now_ms()))?)
+    }
+
+    /// The only way to start a download: a second download of a pack already in flight would write
+    /// the same partial file and could change bytes after they were hashed.
+    pub fn begin_download(&self, id: &str) -> Result<DownloadSlot, ContentError> {
+        let mut set = self.downloading.lock().unwrap_or_else(|p| p.into_inner());
+        if !set.insert(id.to_owned()) {
+            return Err(ContentError::Download(format!("{id} is already downloading")));
+        }
+        Ok(DownloadSlot { id: id.to_owned(), set: self.downloading.clone() })
     }
 
     /// The catalog entry a download needs (only catalog packs can be downloaded).

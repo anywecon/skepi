@@ -30,19 +30,19 @@ std::unique_ptr<Archive> open_archive(rust::Str path) {
 
 ArchiveMeta Archive::meta() const {
   ArchiveMeta m;
-  m.uuid = rust::String(static_cast<std::string>(archive_.getUuid()));
-  m.title = rust::String(meta_or_empty(archive_, "Title"));
-  m.language = rust::String(meta_or_empty(archive_, "Language"));
-  m.name = rust::String(meta_or_empty(archive_, "Name"));
-  m.flavour = rust::String(meta_or_empty(archive_, "Flavour"));
-  m.date = rust::String(meta_or_empty(archive_, "Date"));
+  m.uuid = rust::String::lossy(static_cast<std::string>(archive_.getUuid()));
+  m.title = rust::String::lossy(meta_or_empty(archive_, "Title"));
+  m.language = rust::String::lossy(meta_or_empty(archive_, "Language"));
+  m.name = rust::String::lossy(meta_or_empty(archive_, "Name"));
+  m.flavour = rust::String::lossy(meta_or_empty(archive_, "Flavour"));
+  m.date = rust::String::lossy(meta_or_empty(archive_, "Date"));
   m.article_count = archive_.getArticleCount();
   m.has_fulltext_index = archive_.hasFulltextIndex();
   m.has_title_index = archive_.hasTitleIndex();
   m.has_main = false;
   if (archive_.hasMainEntry()) {
     try {
-      m.main_path = rust::String(archive_.getMainEntry().getItem(true).getPath());
+      m.main_path = rust::String::lossy(archive_.getMainEntry().getItem(true).getPath());
       m.has_main = true;
     } catch (const std::exception&) {
       m.has_main = false;
@@ -60,10 +60,10 @@ rust::Vec<Hit> Archive::suggest(rust::Str query, uint32_t limit) const {
   rust::Vec<Hit> out;
   for (auto it = results.begin(); it != results.end(); ++it) {
     Hit h;
-    h.path = rust::String(it->getPath());
-    h.title = rust::String(it->getTitle());
+    h.path = rust::String::lossy(it->getPath());
+    h.title = rust::String::lossy(it->getTitle());
     h.has_snippet = it->hasSnippet();
-    h.snippet = rust::String(h.has_snippet ? it->getSnippet() : std::string());
+    h.snippet = rust::String::lossy(h.has_snippet ? it->getSnippet() : std::string());
     h.score = 0;
     h.has_score = false;
     out.push_back(std::move(h));
@@ -81,12 +81,12 @@ rust::Vec<Hit> Archive::search(rust::Str query, uint32_t limit, bool with_snippe
   auto results = search.getResults(0, static_cast<int>(limit));
   for (auto it = results.begin(); it != results.end(); ++it) {
     Hit h;
-    h.path = rust::String(it.getPath());
-    h.title = rust::String(it.getTitle());
+    h.path = rust::String::lossy(it.getPath());
+    h.title = rust::String::lossy(it.getTitle());
     h.score = it.getScore();
     h.has_score = true;
     h.has_snippet = with_snippets;
-    h.snippet = rust::String(with_snippets ? it.getSnippet() : std::string());
+    h.snippet = rust::String::lossy(with_snippets ? it.getSnippet() : std::string());
     out.push_back(std::move(h));
   }
   return out;

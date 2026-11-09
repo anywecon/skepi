@@ -1,7 +1,8 @@
 //! Places packs (OSM -> SQLite FTS5, built by tools/catalog-builder): opened read-only, and only
 //! verified packs. The UI runs `@skepi/core` `searchPlaces` / `emergencyPois` over this executor, so
 //! the query logic stays shared with mobile; this side only guarantees that nothing can write
-//! (read-only open, `PRAGMA query_only`, and every statement must be read-only).
+//! (read-only open, `PRAGMA query_only`, and every statement must be read-only) and that nothing
+//! else can be read (no attached databases).
 
 use rusqlite::types::{Value as SqlValue, ValueRef};
 use rusqlite::{Connection, OpenFlags};
@@ -56,6 +57,9 @@ impl Places {
             OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI | OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )?;
         conn.execute_batch("PRAGMA query_only = ON;")?;
+        // ATTACH is a read-only statement too: without this limit a query could open any SQLite file
+        // the process can read (another app's data, app.db's neighbours) through this connection.
+        conn.set_limit(rusqlite::limits::Limit::SQLITE_LIMIT_ATTACHED, 0)?;
         self.dbs.lock().unwrap_or_else(|p| p.into_inner()).insert(pack_id.to_owned(), conn);
         Ok(())
     }
@@ -119,5 +123,24 @@ mod tests {
             p.query("places-test", "PRAGMA query_only = OFF", &[]).is_err() || p.query("places-test", "DELETE FROM places", &[]).is_err()
         );
         assert!(matches!(p.query("other", "SELECT 1", &[]), Err(PlacesError::NotOpen(_))));
+    }
+
+    #[test]
+    fn no_other_database_can_be_attached() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let path = dir.path().join("p.sqlite");
+        Connection::open(&path).expect("create").execute_batch("CREATE TABLE places (id INTEGER PRIMARY KEY, name TEXT);").expect("seed");
+        // Any other SQLite file the process can read, e.g. another app's or the user's.
+        let other = dir.path().join("other.sqlite");
+        Connection::open(&other)
+            .expect("create")
+            .execute_batch("CREATE TABLE secret (v TEXT); INSERT INTO secret VALUES ('private');")
+            .expect("seed");
+        let p = Places::default();
+        p.open("places-test", &path).expect("open");
+        let attach = format!("ATTACH DATABASE '{}' AS other", other.display());
+        let attached = p.query("places-test", &attach, &[]);
+        let leaked = p.query("places-test", "SELECT v FROM other.secret", &[]);
+        assert!(attached.is_err() && leaked.is_err(), "attach: {attached:?}, read: {leaked:?}");
     }
 }

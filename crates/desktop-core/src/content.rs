@@ -140,6 +140,15 @@ fn kind_of(dir: &str, name: &str) -> Option<PackKind> {
 
 const DIRS: [&str; 4] = ["zim", "models", "maps", "tmp"];
 
+/// Hashes an installed file; an error unless it has exactly these bytes.
+fn require_digest(path: &Path, sha256: &str, size: u64, cancel: Option<&AtomicBool>) -> Result<(), ContentError> {
+    let d = digest_file(path, catalog::CATALOG_CHUNK_SIZE, cancel, |_, _| {})?;
+    if d.sha256 != sha256 || d.size_bytes != size {
+        return Err(ContentError::Rejected(format!("{}: the installed file is not the file that was checked", path.display())));
+    }
+    Ok(())
+}
+
 /// Verified ZIM packs, then unverified ones the user consented to (never anything else).
 pub fn openable_zims(packs: Vec<PackRow>) -> Vec<PackRow> {
     let mut zims: Vec<PackRow> = packs.into_iter().filter(|p| p.kind == PackKind::Zim && (p.verified || p.consent_at.is_some())).collect();
@@ -427,7 +436,14 @@ impl ContentStore {
         if let Some(entry) = self.catalog().and_then(|c| c.find_by_sha256(&d.sha256).cloned())
             && entry.size_bytes == d.size_bytes
         {
-            return self.install_verified(&entry, &tmp, PackSource::Import, cancel, progress);
+            let row = self.install_verified(&entry, &tmp, PackSource::Import, cancel, &mut progress)?;
+            // What is registered must be what was checked: hash the installed file again.
+            if let Err(e) = require_digest(Path::new(&row.path), &row.sha256, row.size_bytes, cancel) {
+                self.db.remove_pack(&row.id)?;
+                let _ = std::fs::remove_file(&row.path);
+                return Err(e);
+            }
+            return Ok(row);
         }
         if !lower.ends_with(".zim") {
             let _ = std::fs::remove_file(&tmp);
@@ -435,6 +451,10 @@ impl ContentStore {
         }
         let target = self.root().join("zim").join(format!("import-{}.zim", &d.sha256[..16]));
         std::fs::rename(&tmp, &target)?;
+        if let Err(e) = require_digest(&target, &d.sha256, d.size_bytes, cancel) {
+            let _ = std::fs::remove_file(&target);
+            return Err(e);
+        }
         let row = PackRow {
             id: format!("local-{}", &d.sha256[..12]),
             kind: PackKind::Zim,

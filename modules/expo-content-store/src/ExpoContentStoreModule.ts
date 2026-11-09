@@ -66,8 +66,11 @@ declare class ExpoContentStoreNativeModule extends NativeModule<ContentStoreEven
   removeDownload(id: number): boolean;
   /** Moves a finished download under the content root (Android 7–10) and returns its absolute path. */
   adoptDownload(fileName: string): Promise<string>;
-  /** Android 7–10: moves packs of older versions from external into internal storage; returns the count. */
-  migrateLegacyContent(): Promise<number>;
+  /**
+   * Android 7–10: moves packs of older versions from external into internal storage. `kept`: content
+   * paths (`zim/<file>`) that could not move and stay where they are (their rows must stay too).
+   */
+  migrateLegacyContent(): Promise<{ moved: number; kept: string[] }>;
   fileInfo(relativePath: string): ContentFileInfo;
   listDir(dir: 'zim' | 'models' | 'maps' | 'tmp'): ContentDirEntry[];
   installFile(fromRelative: string, toRelative: string): Promise<string>;

@@ -24,6 +24,8 @@ export class FakeFs {
   readonly hashed: string[] = [];
   /** Runs right after a hash finished, before the caller continues (another process writing). */
   afterHash: ((path: string) => void) | null = null;
+  /** Content paths `migrateLegacyContent` reports as still in external storage. */
+  legacyKept: string[] = [];
   /** Downloads handed to the (fake) DownloadManager, by id - 1. */
   readonly downloads: { url: string; fileName: string; removed: boolean }[] = [];
   /** What queryDownload reports for a running download. */
@@ -42,6 +44,7 @@ export class FakeFs {
     this.hashed.length = 0;
     this.afterHash = null;
     this.downloads.length = 0;
+    this.legacyKept = [];
   }
 
   private tick(): number {
@@ -132,7 +135,7 @@ export class FakeFs {
       if (d) d.removed = true;
       return d !== undefined;
     },
-    migrateLegacyContent: (): Promise<number> => Promise.resolve(0),
+    migrateLegacyContent: (): Promise<{ moved: number; kept: string[] }> => Promise.resolve({ moved: 0, kept: this.legacyKept }),
     addListener: () => ({ remove: (): void => undefined }),
   };
 

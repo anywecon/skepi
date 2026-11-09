@@ -67,7 +67,7 @@ object ContentRules {
     if (sdkInt >= PRIVATE_EXTERNAL_FROM_API) externalFilesDir else File(filesDir, "content")
 
   /**
-   * Identity of a file without reading it: size, device, inode, modification and change time. A
+   * Identity of a file without reading it: size, inode, modification and change time. A
    * replacement (new inode) or any write (new change time, which no app can set back) changes it,
    * also when the old modification time is restored. Startup hashes a pack again when it differs.
    */
@@ -75,7 +75,8 @@ object ContentRules {
     val st = Os.stat(file.path)
     val mtime = if (Build.VERSION.SDK_INT >= 27) "${st.st_mtim.tv_sec}.${st.st_mtim.tv_nsec}" else "${file.lastModified()}"
     val ctime = if (Build.VERSION.SDK_INT >= 27) "${st.st_ctim.tv_sec}.${st.st_ctim.tv_nsec}" else "${st.st_ctime}"
-    return "a1:${st.st_size}:${st.st_dev}:${st.st_ino}:$mtime:$ctime"
+    // No device number: FUSE-backed storage may get a new one after a remount (a full hash at every start).
+    return "a2:${st.st_size}:${st.st_ino}:$mtime:$ctime"
   }
 
   /** Free space needed before a download starts: the file, 10% headroom and 1 GiB for the OS. */

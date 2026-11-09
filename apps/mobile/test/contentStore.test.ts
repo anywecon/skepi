@@ -142,3 +142,20 @@ describe('downloads stop at the catalog size', () => {
     expect(fakeFs.downloads.map((d) => d.removed)).toEqual([true]);
   });
 });
+
+describe('Android 7–10: packs that could not move into internal storage', () => {
+  it('stay registered while they are still in external storage', async () => {
+    const rel = await installSmoke();
+    // The file is not under the new (internal) root, and the move reported it as kept.
+    const bytes = fakeFs.read(rel);
+    fakeFs.files.delete(rel);
+    fakeFs.legacyKept = [rel];
+    const report = await store.reconcile();
+    expect(report.missing).toEqual([]);
+    expect((await getPack(db, SMOKE_ID))?.verified).toBe(true);
+    // Once it is gone everywhere, it is missing as before.
+    fakeFs.legacyKept = [];
+    expect((await store.reconcile()).missing).toEqual([SMOKE_ID]);
+    fakeFs.write(rel, bytes);
+  });
+});

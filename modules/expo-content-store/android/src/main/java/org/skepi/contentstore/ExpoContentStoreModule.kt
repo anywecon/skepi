@@ -110,7 +110,11 @@ class ExpoContentStoreModule : Module() {
 
     Function("getFreeBytes") { StatFs(root().path).availableBytes.toDouble() }
 
-    Function("requiredFreeBytes") { sizeBytes: Double -> ContentRules.requiredFreeBytes(sizeBytes.toLong()).toDouble() }
+    // Android 7–10: a finished download is copied from external into internal storage, so twice its size.
+    Function("requiredFreeBytes") { sizeBytes: Double ->
+      val size = sizeBytes.toLong()
+      (ContentRules.requiredFreeBytes(size) + if (privateExternal()) 0L else size).toDouble()
+    }
 
     /** Starts a system download into tmp/<file>.partial. Wi-Fi only unless `allowMetered`. */
     AsyncFunction("startDownload") { url: String, fileName: String, title: String, allowMetered: Boolean ->
@@ -168,24 +172,47 @@ class ExpoContentStoreModule : Module() {
      * internal content root. They have no file stamp, so the following reconcile hashes them there.
      */
     AsyncFunction("migrateLegacyContent") {
-      if (privateExternal()) return@AsyncFunction 0
-      val legacy = context.getExternalFilesDir(null)?.canonicalFile ?: return@AsyncFunction 0
+      val none = mapOf("moved" to 0.0, "kept" to emptyList<String>())
+      if (privateExternal()) return@AsyncFunction none
+      val legacy = context.getExternalFilesDir(null)?.canonicalFile ?: return@AsyncFunction none
       var moved = 0
+      // Files still only in external storage (not enough space, or the copy failed): their rows stay.
+      val kept = mutableListOf<String>()
       for (dir in listOf("zim", "models", "maps")) {
         for (f in File(legacy, dir).listFiles()?.filter { it.isFile && ContentRules.isAllowedFileName(it.name) } ?: emptyList()) {
-          val target = content("$dir/${f.name}")
-          if (target.exists()) continue
+          val rel = "$dir/${f.name}"
+          val target = content(rel)
+          if (target.exists()) {
+            // Moved before, but the source was not deleted (killed in between): the copy is complete.
+            // Startup hashes it anyway (it has no stamp yet), so a same-size copy is still checked.
+            if (target.length() == f.length()) {
+              f.delete()
+              continue
+            }
+            if (!target.delete()) {
+              kept.add(rel)
+              continue
+            }
+          }
+          // Copy under a temporary name in tmp/, then one rename: an interrupted copy never looks finished.
+          val staging = content("tmp/${f.name}.migrating")
           try {
+            if (StatFs(root().path).availableBytes < f.length() + 64L * 1024 * 1024) throw java.io.IOException("not enough internal storage")
+            staging.parentFile?.mkdirs()
+            Files.copy(f.toPath(), staging.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            if (staging.length() != f.length()) throw java.io.IOException("short copy")
             target.parentFile?.mkdirs()
-            Files.move(f.toPath(), target.toPath())
+            Files.move(staging.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
+            if (!f.delete()) Log.w(TAG, "moved ${f.name}; the external copy stays")
             moved += 1
           } catch (e: Exception) {
-            target.delete()
+            staging.delete()
+            kept.add(rel)
             Log.w(TAG, "could not move ${f.name} into internal storage: ${e.message}")
           }
         }
       }
-      moved
+      mapOf("moved" to moved.toDouble(), "kept" to kept)
     }
 
     Function("fileInfo") { relativePath: String ->

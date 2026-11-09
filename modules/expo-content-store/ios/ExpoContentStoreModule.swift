@@ -34,7 +34,7 @@ enum ContentRules {
   static func fileStamp(_ url: URL) -> String? {
     var st = stat()
     guard stat(url.path, &st) == 0 else { return nil }
-    return "i1:\(st.st_size):\(st.st_dev):\(st.st_ino):\(st.st_mtimespec.tv_sec).\(st.st_mtimespec.tv_nsec):\(st.st_ctimespec.tv_sec).\(st.st_ctimespec.tv_nsec)"
+    return "i2:\(st.st_size):\(st.st_ino):\(st.st_mtimespec.tv_sec).\(st.st_mtimespec.tv_nsec):\(st.st_ctimespec.tv_sec).\(st.st_ctimespec.tv_nsec)"
   }
 
   /// Free space needed before a download starts: the file, 10% headroom and 1 GiB for the OS.
@@ -162,8 +162,8 @@ public class ExpoContentStoreModule: Module {
     }
 
     /// Android 7–10 only (packs moving into internal storage); nothing to move on iOS.
-    AsyncFunction("migrateLegacyContent") { () -> Double in
-      0
+    AsyncFunction("migrateLegacyContent") { () -> [String: Any] in
+      ["moved": 0, "kept": [String]()]
     }
 
     Function("listDir") { (dir: String) -> [[String: Any]] in

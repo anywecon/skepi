@@ -86,7 +86,7 @@ pub fn chunk_hashes_prefix(path: &Path, chunk_size: u64) -> io::Result<Vec<Strin
 }
 
 /// Identity of a file as the OS reports it without reading its bytes: size, last write and change
-/// times, volume and file id (Windows) or device and inode (Unix). Any replacement or write changes
+/// times, volume and file id (Windows) or inode (Unix). Any replacement or write changes
 /// it, also when the old modification time is restored (the change time and the file id cannot be set
 /// through the usual APIs). Equal stamps let startup skip a full hash; different stamps force one.
 #[cfg(windows)]
@@ -121,7 +121,9 @@ pub fn file_stamp(path: &Path) -> io::Result<String> {
 pub fn file_stamp(path: &Path) -> io::Result<String> {
     use std::os::unix::fs::MetadataExt;
     let m = std::fs::metadata(path)?;
-    Ok(format!("u1:{}:{}:{}:{}.{}:{}.{}", m.size(), m.dev(), m.ino(), m.mtime(), m.mtime_nsec(), m.ctime(), m.ctime_nsec()))
+    // No device number: removable drives get a new one at every mount, which would force a full hash of
+    // every pack at each start; inode and change time still change with any replacement or write.
+    Ok(format!("u2:{}:{}:{}.{}:{}.{}", m.size(), m.ino(), m.mtime(), m.mtime_nsec(), m.ctime(), m.ctime_nsec()))
 }
 
 #[cfg(test)]

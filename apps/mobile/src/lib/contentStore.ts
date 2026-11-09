@@ -230,9 +230,11 @@ export class AndroidContentStore implements ContentStore {
       try {
         await ExpoContentStore.adoptDownload(entry.file);
       } catch (e) {
+        // Local storage, not the mirror: another mirror would fail the same way after a full download.
         ExpoContentStore.removeDownload(downloadId);
-        lastError = `mirror ${String(mirror + 1)}: ${e instanceof Error ? e.message : String(e)}`;
-        continue;
+        await ExpoContentStore.deleteFile(partial);
+        yield progress('failed', mirror, rejected, 0, e instanceof Error ? e.message : String(e));
+        throw new ContentError('download_failed', `${entry.id}: the download could not be moved into app storage`);
       }
       const info = ExpoContentStore.fileInfo(partial);
       yield progress('verifying', mirror, rejected, info.sizeBytes);
@@ -328,11 +330,12 @@ export class AndroidContentStore implements ContentStore {
     // Set inside the transaction callback; an object so control-flow analysis sees the assignment.
     const moved = { done: false };
     try {
+      row.path = await ExpoContentStore.installFile(from, target);
+      moved.done = true;
+      row.fileStamp = ExpoContentStore.fileInfo(target).stamp;
+      // Outside the transaction: a multi-GB hash must not hold the database.
+      if (verifyInstalled) await requireDigest(row.path, entry.sha256, entry.sizeBytes);
       await db.transaction(async (tx) => {
-        row.path = await ExpoContentStore.installFile(from, target);
-        moved.done = true;
-        row.fileStamp = ExpoContentStore.fileInfo(target).stamp;
-        if (verifyInstalled) await requireDigest(row.path, entry.sha256, entry.sizeBytes);
         await upsertPack(tx, row);
       });
     } catch (e) {
@@ -397,12 +400,12 @@ export class AndroidContentStore implements ContentStore {
       };
       const moved = { done: false };
       try {
+        row.path = await ExpoContentStore.installFile(copied.relativePath, `zim/${file}`);
+        moved.done = true;
+        row.fileStamp = ExpoContentStore.fileInfo(`zim/${file}`).stamp;
+        // The id and the registered hash name these bytes: hash what was installed.
+        await requireDigest(row.path, digest.sha256, digest.sizeBytes);
         await db.transaction(async (tx) => {
-          row.path = await ExpoContentStore.installFile(copied.relativePath, `zim/${file}`);
-          moved.done = true;
-          row.fileStamp = ExpoContentStore.fileInfo(`zim/${file}`).stamp;
-          // The id and the registered hash name these bytes: hash what was installed.
-          await requireDigest(row.path, digest.sha256, digest.sizeBytes);
           await upsertPack(tx, row);
         });
       } catch (e) {
@@ -507,11 +510,14 @@ export class AndroidContentStore implements ContentStore {
     const catalog = this.catalog();
     const report: ReconcileReport = { registered: [], unverified: [], rejectedModels: [], rejectedMaps: [], missing: [], changed: [], partialsRemoved: 0 };
     // Android 7–10: packs of older versions move from external into internal storage first.
-    await ExpoContentStore.migrateLegacyContent();
+    const legacy = await ExpoContentStore.migrateLegacyContent();
+    const kept = new Set(legacy.kept);
     const known = await listPacks(db);
     for (const p of known) {
       const file = p.path.split('/').pop() ?? '';
       const info = ExpoContentStore.fileInfo(relativePath(p.kind, file));
+      // A pack that could not move into internal storage yet stays registered where it is.
+      if (!info.exists && kept.has(relativePath(p.kind, file))) continue;
       if (!info.exists) {
         await removePack(db, p.id);
         report.missing.push(p.id);

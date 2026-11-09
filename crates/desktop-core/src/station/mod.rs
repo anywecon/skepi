@@ -356,6 +356,7 @@ mod tests {
             consent_at: None,
             installed_at: 1,
             last_opened_at: None,
+            file_stamp: None,
         }
     }
 

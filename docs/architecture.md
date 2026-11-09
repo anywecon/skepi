@@ -237,7 +237,7 @@ HTML is converted to text natively (jsoup on Android, SwiftSoup on iOS, scraper 
 
 **Files on disk**
 
-- **Android:** app-specific external storage (`getExternalFilesDir`), no permissions. SD card via the card's app-specific directory (`getExternalFilesDirs`), still a real path. Files from the Storage Access Framework are **copied** into the app, because opening a ZIM from an fd only breaks the Xapian index (libzim #852).
+- **Android:** packs live where no other app can write them. From Android 11 (API 30): app-specific external storage (`getExternalFilesDir`), no permissions. On Android 7–10 (API 24–29) other apps with the storage permission can write there, so packs live in internal storage (`files/content`); DownloadManager can only write to external storage, so a finished download is moved into internal storage before it is hashed, and packs of older versions move there at startup (then hashed). One rule in `ContentRules.contentRoot`, repeated in `expo-transfer` and `expo-zim`. SD card via the card's app-specific directory (`getExternalFilesDirs`), still a real path. Files from the Storage Access Framework are **copied** into the app, because opening a ZIM from an fd only breaks the Xapian index (libzim #852).
 - **iOS:** Application Support with `isExcludedFromBackup`. Import via the Files app.
 - **Desktop:** user-chosen folder, external drives supported (a USB stick becomes a portable library).
 
@@ -443,7 +443,7 @@ Every file the app opens (ZIM, GGUF, PMTiles, places DB) corresponds to an entry
 
 **File import:** files from USB, Kiwix or Files are copied into app storage, hashed and looked up in the catalog. Match = "verified". Otherwise "unverified": opens only by explicit choice, with a permanent label ("Unverified content — not in the signed catalog" in search, article and Ask sources) and JavaScript always off. Unverified GGUF files are not accepted on mobile in v1 (import rejected; provisioned ones are never loaded; app.db forbids unverified non-ZIM packs).
 
-**Startup:** registered packs get a quick check (exists, size); files the database does not know (e.g. pushed by `scripts/provision.ps1`, which stays a dev tool) are hashed once and registered as verified when the catalog knows them, as unverified ZIM otherwise; stale `tmp/*.partial` files are removed.
+**Startup:** registered packs get a quick check (exists, size, file stamp: size, device and inode or volume and file id, modification and change time, recorded when the file was installed or last hashed); any difference means a full hash, so a same-size replacement loses the verified state (and an unverified ZIM its consent) unless the bytes still match the catalog; files the database does not know (e.g. pushed by `scripts/provision.ps1`, which stays a dev tool) are hashed once and registered as verified when the catalog knows them, as unverified ZIM otherwise; stale `tmp/*.partial` files are removed.
 
 ## P2P content sharing
 
@@ -739,7 +739,7 @@ CREATE TABLE energy_samples (
 CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 ```
 
-- `packs` is the source of truth for installed packs. Startup does a quick check (existence and size); full hash only on mismatch or via "Integrity check".
+- `packs` is the source of truth for installed packs. Startup does a quick check (existence, size, `file_stamp`); full hash on any difference (packs without a stamp, from before migration 4, once) or via "Integrity check".
 - `messages.citations_json` holds `{ sourceId, packId, path, section }[]` so old answers can reopen their sources; a deleted pack shows "unavailable".
 - `energy_samples` feeds blackout-mode cost estimates and never leaves the device.
 - Backup is an explicit export to an encrypted file (passphrase). No cloud sync.

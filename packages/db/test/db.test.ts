@@ -70,12 +70,21 @@ const PACK: PackRow = {
   consentAt: null,
   installedAt: 1000,
   lastOpenedAt: null,
+  fileStamp: 'u1:296858160:1:2:3:4',
 };
+
+/** A pack row as the app wrote it before migration 4 (no file_stamp column). */
+async function insertV1Pack(db: SqlDatabase, p: PackRow): Promise<void> {
+  await db.execute(
+    'INSERT INTO packs (id, kind, version, title, path, size_bytes, sha256, verified, catalog_seq, license, source, consent_at, installed_at, last_opened_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [p.id, p.kind, p.version, p.title, p.path, p.sizeBytes, p.sha256, p.verified ? 1 : 0, p.catalogSeq, p.license, p.source, p.consentAt, p.installedAt, p.lastOpenedAt],
+  );
+}
 
 describe('migrate', () => {
   it('applies every migration once, in order, and is idempotent', async () => {
     const db = memoryDb();
-    expect(await migrate(db, MIGRATIONS, () => 42)).toEqual([1, 2, 3]);
+    expect(await migrate(db, MIGRATIONS, () => 42)).toEqual([1, 2, 3, 4]);
     expect(await migrate(db)).toEqual([]);
     expect(await schemaVersion(db)).toBe(MIGRATIONS.length);
     const tables = (await db.execute("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")).rows.map((r) => r.name);
@@ -94,14 +103,24 @@ describe('migrate', () => {
   it('migration 3 keeps installed packs and accepts packs received over P2P', async () => {
     const db = memoryDb();
     await migrate(db, MIGRATIONS.slice(0, 2));
-    await upsertPack(db, PACK);
-    expect(await migrate(db)).toEqual([3]);
-    expect(await getPack(db, PACK.id)).toEqual(PACK);
+    await insertV1Pack(db, PACK);
+    expect(await migrate(db)).toEqual([3, 4]);
+    expect(await getPack(db, PACK.id)).toEqual({ ...PACK, fileStamp: null });
     await upsertPack(db, { ...PACK, id: 'received', path: '/x/received.zim', source: 'p2p' });
     expect((await getPack(db, 'received'))?.source).toBe('p2p');
     // The rules still hold after the rebuild: no unverified non-ZIM pack, no unknown source.
     await expect(upsertPack(db, { ...PACK, id: 'bad', path: '/x/bad.gguf', kind: 'gguf', verified: false, catalogSeq: null })).rejects.toThrow();
     await expect(async () => db.execute("UPDATE packs SET source = 'mirror' WHERE id = 'received'")).rejects.toThrow(/CHECK/);
+  });
+
+  it('migration 4 keeps installed packs unstamped, so startup hashes them once', async () => {
+    const db = memoryDb();
+    await migrate(db, MIGRATIONS.slice(0, 3));
+    await insertV1Pack(db, PACK);
+    expect(await migrate(db)).toEqual([4]);
+    expect(await getPack(db, PACK.id)).toEqual({ ...PACK, fileStamp: null });
+    await upsertPack(db, PACK);
+    expect((await getPack(db, PACK.id))?.fileStamp).toBe(PACK.fileStamp);
   });
 
   it('rolls back a failing migration completely', async () => {

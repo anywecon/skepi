@@ -134,6 +134,9 @@ pub struct PackRow {
     pub consent_at: Option<i64>,
     pub installed_at: i64,
     pub last_opened_at: Option<i64>,
+    /// `hash::file_stamp` of the file when it was last hashed (None: never stamped, hashed at startup).
+    #[serde(default, skip_serializing)]
+    pub file_stamp: Option<String>,
 }
 
 fn to_pack(r: &rusqlite::Row<'_>) -> rusqlite::Result<PackRow> {
@@ -154,6 +157,7 @@ fn to_pack(r: &rusqlite::Row<'_>) -> rusqlite::Result<PackRow> {
         consent_at: r.get("consent_at")?,
         installed_at: r.get("installed_at")?,
         last_opened_at: r.get("last_opened_at")?,
+        file_stamp: r.get("file_stamp")?,
     })
 }
 
@@ -223,12 +227,12 @@ impl AppDb {
     pub fn upsert_pack(&self, p: &PackRow) -> Result<(), DbError> {
         self.with(|c| {
             c.execute(
-                "INSERT INTO packs (id, kind, version, title, path, size_bytes, sha256, verified, catalog_seq, license, source, consent_at, installed_at, last_opened_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                "INSERT INTO packs (id, kind, version, title, path, size_bytes, sha256, verified, catalog_seq, license, source, consent_at, installed_at, last_opened_at, file_stamp)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, version = excluded.version, title = excluded.title, path = excluded.path,
                    size_bytes = excluded.size_bytes, sha256 = excluded.sha256, verified = excluded.verified, catalog_seq = excluded.catalog_seq,
                    license = excluded.license, source = excluded.source, consent_at = excluded.consent_at, installed_at = excluded.installed_at,
-                   last_opened_at = excluded.last_opened_at",
+                   last_opened_at = excluded.last_opened_at, file_stamp = excluded.file_stamp",
                 params![
                     p.id,
                     p.kind.as_str(),
@@ -243,7 +247,8 @@ impl AppDb {
                     p.source.as_str(),
                     p.consent_at,
                     p.installed_at,
-                    p.last_opened_at
+                    p.last_opened_at,
+                    p.file_stamp
                 ],
             )?;
             Ok(())
@@ -340,6 +345,7 @@ mod tests {
             consent_at: None,
             installed_at: 1,
             last_opened_at: None,
+            file_stamp: None,
         }
     }
 

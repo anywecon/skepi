@@ -85,6 +85,45 @@ pub fn chunk_hashes_prefix(path: &Path, chunk_size: u64) -> io::Result<Vec<Strin
     Ok(out)
 }
 
+/// Identity of a file as the OS reports it without reading its bytes: size, last write and change
+/// times, volume and file id (Windows) or device and inode (Unix). Any replacement or write changes
+/// it, also when the old modification time is restored (the change time and the file id cannot be set
+/// through the usual APIs). Equal stamps let startup skip a full hash; different stamps force one.
+#[cfg(windows)]
+pub fn file_stamp(path: &Path) -> io::Result<String> {
+    use std::os::windows::io::AsRawHandle;
+    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::Storage::FileSystem::{
+        BY_HANDLE_FILE_INFORMATION, FILE_BASIC_INFO, FileBasicInfo, GetFileInformationByHandle, GetFileInformationByHandleEx,
+    };
+    let file = File::open(path)?;
+    let handle = HANDLE(file.as_raw_handle());
+    let mut info = BY_HANDLE_FILE_INFORMATION::default();
+    // SAFETY: `handle` is an open file handle owned by `file` for the whole call; `info` is a valid out pointer.
+    unsafe { GetFileInformationByHandle(handle, &mut info) }.map_err(|e| io::Error::other(e.to_string()))?;
+    let mut basic = FILE_BASIC_INFO::default();
+    // SAFETY: as above; the buffer is a FILE_BASIC_INFO and its exact size is passed.
+    unsafe {
+        GetFileInformationByHandleEx(
+            handle,
+            FileBasicInfo,
+            (&mut basic as *mut FILE_BASIC_INFO).cast(),
+            std::mem::size_of::<FILE_BASIC_INFO>() as u32,
+        )
+    }
+    .map_err(|e| io::Error::other(e.to_string()))?;
+    let size = (u64::from(info.nFileSizeHigh) << 32) | u64::from(info.nFileSizeLow);
+    let index = (u64::from(info.nFileIndexHigh) << 32) | u64::from(info.nFileIndexLow);
+    Ok(format!("w1:{size}:{}:{index}:{}:{}", info.dwVolumeSerialNumber, basic.LastWriteTime, basic.ChangeTime))
+}
+
+#[cfg(unix)]
+pub fn file_stamp(path: &Path) -> io::Result<String> {
+    use std::os::unix::fs::MetadataExt;
+    let m = std::fs::metadata(path)?;
+    Ok(format!("u1:{}:{}:{}:{}.{}:{}.{}", m.size(), m.dev(), m.ino(), m.mtime(), m.mtime_nsec(), m.ctime(), m.ctime_nsec()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -103,6 +142,20 @@ mod tests {
         assert_eq!(d.chunk_sha256[0], sha256_hex(&data[..65_536]));
         assert_eq!(d.chunk_sha256[4], sha256_hex(&data[262_144..]));
         assert_eq!(chunk_hashes_prefix(&path, 65_536).expect("prefix"), d.chunk_sha256[..4].to_vec());
+    }
+
+    #[test]
+    fn file_stamp_is_stable_and_changes_on_same_size_writes() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let path = dir.path().join("s.bin");
+        std::fs::write(&path, b"abcdef").expect("write");
+        let first = file_stamp(&path).expect("stamp");
+        assert_eq!(file_stamp(&path).expect("stamp"), first);
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let mtime = std::fs::metadata(&path).expect("meta").modified().expect("mtime");
+        std::fs::write(&path, b"abcdeX").expect("rewrite");
+        File::options().write(true).open(&path).expect("open").set_modified(mtime).expect("restore mtime");
+        assert_ne!(file_stamp(&path).expect("stamp"), first, "same size and mtime, but written again");
     }
 
     #[test]

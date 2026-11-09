@@ -82,4 +82,15 @@ export const MIGRATIONS: readonly Migration[] = [
       'CREATE INDEX packs_sha256 ON packs (sha256)',
     ],
   },
+  {
+    version: 4,
+    name: 'packs_file_stamp',
+    statements: [
+      // Identity of the installed file when it was last hashed (size, modification and change
+      // times, file id or inode; written by the native side). Startup hashes a pack again whenever
+      // the stamp differs, so a same-size replacement cannot keep the verified state. NULL (packs
+      // from before this migration) is hashed once.
+      'ALTER TABLE packs ADD COLUMN file_stamp TEXT',
+    ],
+  },
 ];

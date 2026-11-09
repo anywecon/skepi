@@ -204,7 +204,15 @@ export class AndroidContentStore implements ContentStore {
         ExpoContentStore.removeDownload(downloadId);
         continue;
       }
-      // Verify before anything can open the file.
+      // Verify before anything can open the file, where nothing but the app can write it (Android
+      // 7–10: DownloadManager wrote to external storage, the file is moved in first).
+      try {
+        await ExpoContentStore.adoptDownload(entry.file);
+      } catch (e) {
+        ExpoContentStore.removeDownload(downloadId);
+        lastError = `mirror ${String(mirror + 1)}: ${e instanceof Error ? e.message : String(e)}`;
+        continue;
+      }
       const info = ExpoContentStore.fileInfo(partial);
       yield progress('verifying', mirror, rejected, info.sizeBytes);
       let sha256: string;
@@ -280,6 +288,7 @@ export class AndroidContentStore implements ContentStore {
       consentAt: null,
       installedAt: Date.now(),
       lastOpenedAt: null,
+      fileStamp: null,
     };
     // An update (same pack id, new file) replaces the old version: its file goes only after the swap.
     const previous = await getPack(db, entry.id);
@@ -290,6 +299,7 @@ export class AndroidContentStore implements ContentStore {
       await db.transaction(async (tx) => {
         row.path = await ExpoContentStore.installFile(from, target);
         moved.done = true;
+        row.fileStamp = ExpoContentStore.fileInfo(target).stamp;
         await upsertPack(tx, row);
       });
     } catch (e) {
@@ -349,9 +359,11 @@ export class AndroidContentStore implements ContentStore {
         consentAt: null,
         installedAt: Date.now(),
         lastOpenedAt: null,
+        fileStamp: null,
       };
       await db.transaction(async (tx) => {
         row.path = await ExpoContentStore.installFile(copied.relativePath, `zim/${file}`);
+        row.fileStamp = ExpoContentStore.fileInfo(`zim/${file}`).stamp;
         await upsertPack(tx, row);
       });
       return toInstalled(row);
@@ -428,9 +440,11 @@ export class AndroidContentStore implements ContentStore {
       consentAt: null,
       installedAt: Date.now(),
       lastOpenedAt: null,
+      fileStamp: null,
     };
     await db.transaction(async (tx) => {
       row.path = await ExpoContentStore.installFile(partialRelative, `zim/${id}.zim`);
+      row.fileStamp = ExpoContentStore.fileInfo(`zim/${id}.zim`).stamp;
       await upsertPack(tx, row);
     });
     return toInstalled(row);
@@ -441,13 +455,16 @@ export class AndroidContentStore implements ContentStore {
   }
 
   /**
-   * Startup check (architecture: quick check of existence and size; full hash only on mismatch or
-   * for files the database does not know, e.g. provisioned by the dev scripts).
+   * Startup check (architecture: quick check of existence, size and file stamp; full hash when either
+   * differs, so a same-size replacement cannot keep the verified state, and for files the database
+   * does not know, e.g. provisioned by the dev scripts).
    */
   async reconcile(onProgress?: (file: string, hashed: number, total: number) => void): Promise<ReconcileReport> {
     const db = await this.db();
     const catalog = this.catalog();
     const report: ReconcileReport = { registered: [], unverified: [], rejectedModels: [], rejectedMaps: [], missing: [], changed: [], partialsRemoved: 0 };
+    // Android 7–10: packs of older versions move from external into internal storage first.
+    await ExpoContentStore.migrateLegacyContent();
     const known = await listPacks(db);
     for (const p of known) {
       const file = p.path.split('/').pop() ?? '';
@@ -457,23 +474,36 @@ export class AndroidContentStore implements ContentStore {
         report.missing.push(p.id);
         continue;
       }
-      if (info.sizeBytes === p.sizeBytes) continue;
+      // Taken before hashing: a write during the hash changes it again, so the next start hashes again.
+      if (info.sizeBytes === p.sizeBytes && info.stamp !== null && info.stamp === p.fileStamp && info.path === p.path) continue;
       const digest = await hashFile(info.path, { onProgress: (h, t) => onProgress?.(file, h, t) });
       const entry = catalog ? findPackBySha256(catalog, digest.sha256) : null;
-      report.changed.push(p.id);
+      const sameBytes = digest.sha256 === p.sha256 && digest.sizeBytes === p.sizeBytes;
+      if (!sameBytes) report.changed.push(p.id);
       if (p.kind !== 'zim' && !entry) {
         // Unverified models, maps and places are never opened (app.db forbids them, too).
         await removePack(db, p.id);
         (p.kind === 'gguf' ? report.rejectedModels : report.rejectedMaps).push(file);
         continue;
       }
-      await upsertPack(db, { ...p, sha256: digest.sha256, sizeBytes: digest.sizeBytes, verified: entry !== null, catalogSeq: entry ? (catalog?.sequence ?? null) : null, consentAt: entry ? null : p.consentAt });
+      await upsertPack(db, {
+        ...p,
+        path: info.path,
+        sha256: digest.sha256,
+        sizeBytes: digest.sizeBytes,
+        verified: entry !== null,
+        catalogSeq: entry ? (catalog?.sequence ?? null) : null,
+        // Consent was given to the old bytes.
+        consentAt: entry || !sameBytes ? null : p.consentAt,
+        fileStamp: info.stamp,
+      });
     }
     for (const dir of ['zim', 'models', 'maps'] as const) {
       for (const f of ExpoContentStore.listDir(dir)) {
         if (await findPackByPath(db, f.path)) continue;
         const kind = fileKind(dir, f.name);
         if (!kind) continue;
+        const stamp = ExpoContentStore.fileInfo(`${dir}/${f.name}`).stamp;
         const digest = await hashFile(f.path, { onProgress: (h, t) => onProgress?.(f.name, h, t) });
         const entry = catalog ? findPackBySha256(catalog, digest.sha256) : null;
         if (entry && entry.kind === kind) {
@@ -492,6 +522,7 @@ export class AndroidContentStore implements ContentStore {
             consentAt: null,
             installedAt: Date.now(),
             lastOpenedAt: null,
+            fileStamp: stamp,
           });
           report.registered.push(entry.id);
         } else if (kind === 'pmtiles' || kind === 'places') {
@@ -512,6 +543,7 @@ export class AndroidContentStore implements ContentStore {
             consentAt: null,
             installedAt: Date.now(),
             lastOpenedAt: null,
+            fileStamp: stamp,
           });
           report.unverified.push(f.name);
         } else {
@@ -557,6 +589,7 @@ async function downloadSmall(url: string, fileName: string, signal: AbortSignal)
       if (q.status === 'successful') break;
       await sleep(POLL_MS);
     }
+    await ExpoContentStore.adoptDownload(fileName);
     const data = await ExpoContentStore.readSmallFileBase64(`tmp/${fileName}.partial`);
     if (data === null) throw new ContentError('download_failed', `${url}: nothing downloaded`);
     return data;

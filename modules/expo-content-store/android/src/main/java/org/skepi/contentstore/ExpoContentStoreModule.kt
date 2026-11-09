@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
+import android.os.Build
 import android.os.StatFs
 import android.provider.OpenableColumns
 import android.util.Base64
@@ -52,8 +53,25 @@ class ExpoContentStoreModule : Module() {
   private val context: Context
     get() = appContext.reactContext?.applicationContext ?: throw Exceptions.ReactContextLost()
 
-  private fun root(): File =
-    context.getExternalFilesDir(null)?.canonicalFile ?: throw ContentStoreException("ERR_CS_NO_STORAGE", "External files dir unavailable")
+  /** Packs: internal storage on Android 7–10, app-specific external storage from Android 11 (ContentRules.contentRoot). */
+  private fun root(): File {
+    val dir = ContentRules.contentRoot(Build.VERSION.SDK_INT, context.getExternalFilesDir(null), context.filesDir)
+      ?: throw ContentStoreException("ERR_CS_NO_STORAGE", "Content storage unavailable")
+    dir.mkdirs()
+    return dir.canonicalFile
+  }
+
+  private fun privateExternal(): Boolean = Build.VERSION.SDK_INT >= ContentRules.PRIVATE_EXTERNAL_FROM_API
+
+  /** DownloadManager writes only to external storage: on Android 7–10 its partial files land outside root(). */
+  private fun downloadRoot(): File =
+    if (privateExternal()) root() else context.getExternalFilesDir(null)?.canonicalFile ?: throw ContentStoreException("ERR_CS_NO_STORAGE", "External files dir unavailable")
+
+  private fun downloadPartial(fileName: String): File = try {
+    ContentRules.resolve(downloadRoot(), "tmp/$fileName.partial")
+  } catch (e: IllegalArgumentException) {
+    throw ContentStoreException("ERR_CS_PATH", e.message ?: "invalid path")
+  }
 
   private fun content(relativePath: String): File = try {
     ContentRules.resolve(root(), relativePath)
@@ -97,7 +115,7 @@ class ExpoContentStoreModule : Module() {
     /** Starts a system download into tmp/<file>.partial. Wi-Fi only unless `allowMetered`. */
     AsyncFunction("startDownload") { url: String, fileName: String, title: String, allowMetered: Boolean ->
       if (!ContentRules.isAllowedUrl(url)) throw ContentStoreException("ERR_CS_URL", "Only HTTPS URLs without query strings are allowed")
-      val partial = content("tmp/$fileName.partial")
+      val partial = downloadPartial(fileName)
       partial.parentFile?.mkdirs()
       if (partial.exists() && !partial.delete()) throw ContentStoreException("ERR_CS_IO", "Cannot replace ${partial.name}")
       val request = DownloadManager.Request(Uri.parse(url))
@@ -129,9 +147,55 @@ class ExpoContentStoreModule : Module() {
     /** Cancels a system download (DownloadManager deletes its partial file). */
     Function("removeDownload") { id: Double -> downloads().remove(id.toLong()) > 0 }
 
+    /**
+     * Brings a finished download to tmp/<file>.partial under the content root, where nothing but the
+     * app can write, before it is hashed. A no-op from Android 11 (the download is already there).
+     */
+    AsyncFunction("adoptDownload") { fileName: String ->
+      val target = content("tmp/$fileName.partial")
+      val downloaded = downloadPartial(fileName)
+      if (downloaded.path != target.path) {
+        if (!downloaded.isFile) throw ContentStoreException("ERR_CS_NOT_FOUND", "Nothing downloaded for $fileName")
+        target.parentFile?.mkdirs()
+        // Another file store: copy, then delete the source (not atomic, but nothing opens tmp/).
+        Files.move(downloaded.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+      }
+      target.absolutePath
+    }
+
+    /**
+     * Android 7–10 only: packs installed by an older version in external storage move into the
+     * internal content root. They have no file stamp, so the following reconcile hashes them there.
+     */
+    AsyncFunction("migrateLegacyContent") {
+      if (privateExternal()) return@AsyncFunction 0
+      val legacy = context.getExternalFilesDir(null)?.canonicalFile ?: return@AsyncFunction 0
+      var moved = 0
+      for (dir in listOf("zim", "models", "maps")) {
+        for (f in File(legacy, dir).listFiles()?.filter { it.isFile && ContentRules.isAllowedFileName(it.name) } ?: emptyList()) {
+          val target = content("$dir/${f.name}")
+          if (target.exists()) continue
+          try {
+            target.parentFile?.mkdirs()
+            Files.move(f.toPath(), target.toPath())
+            moved += 1
+          } catch (e: Exception) {
+            target.delete()
+            Log.w(TAG, "could not move ${f.name} into internal storage: ${e.message}")
+          }
+        }
+      }
+      moved
+    }
+
     Function("fileInfo") { relativePath: String ->
       val f = content(relativePath)
-      mapOf("exists" to f.isFile, "sizeBytes" to (if (f.isFile) f.length() else 0L).toDouble(), "path" to f.absolutePath)
+      mapOf(
+        "exists" to f.isFile,
+        "sizeBytes" to (if (f.isFile) f.length() else 0L).toDouble(),
+        "path" to f.absolutePath,
+        "stamp" to (if (f.isFile) ContentRules.fileStamp(f) else null),
+      )
     }
 
     Function("listDir") { dir: String ->

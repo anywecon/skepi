@@ -28,6 +28,13 @@
         "ALTER TABLE packs_v3 RENAME TO packs",
         "CREATE INDEX packs_sha256 ON packs (sha256)"
       ]
+    },
+    {
+      "version": 4,
+      "name": "packs_file_stamp",
+      "statements": [
+        "ALTER TABLE packs ADD COLUMN file_stamp TEXT"
+      ]
     }
   ]
 }

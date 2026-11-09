@@ -38,15 +38,18 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "@types/node": "22.19.1",
+    "vitest": "5.0.3"
   },
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "eslint src",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p test/tsconfig.json",
+    "lint": "eslint src test",
     "prebuild": "expo prebuild --platform android --clean",
-    "prebuild:ios": "expo prebuild --platform ios --clean"
+    "prebuild:ios": "expo prebuild --platform ios --clean",
+    "test": "vitest run"
   },
   "private": true,
   "license": "GPL-3.0-or-later",

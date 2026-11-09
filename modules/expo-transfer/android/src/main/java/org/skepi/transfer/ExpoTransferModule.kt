@@ -74,8 +74,11 @@ class ExpoTransferModule : Module() {
   private val jobs = ConcurrentHashMap<String, TransferClient>()
   private val random = SecureRandom()
 
-  private fun contentRoot(): File =
-    context.getExternalFilesDir(null)?.canonicalFile ?: throw TransferException("ERR_P2P_STORAGE", "external files dir unavailable")
+  /** The ContentStore's root (ContentRules.contentRoot): internal storage on Android 7–10, app-specific external from 11. */
+  private fun contentRoot(): File {
+    val dir = if (Build.VERSION.SDK_INT >= 30) context.getExternalFilesDir(null) else File(context.filesDir, "content")
+    return dir?.canonicalFile ?: throw TransferException("ERR_P2P_STORAGE", "content storage unavailable")
+  }
 
   /** A file under one of the content folders (packs to serve) or tmp/ (partial files to write). */
   private fun contentFile(path: String, dirs: Set<String>): File {

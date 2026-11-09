@@ -29,6 +29,14 @@ enum ContentRules {
     return file
   }
 
+  /// Identity of a file without reading it (ContentRules.kt `fileStamp`): size, device, inode,
+  /// modification and change time. Startup hashes a pack again whenever it differs.
+  static func fileStamp(_ url: URL) -> String? {
+    var st = stat()
+    guard stat(url.path, &st) == 0 else { return nil }
+    return "i1:\(st.st_size):\(st.st_dev):\(st.st_ino):\(st.st_mtimespec.tv_sec).\(st.st_mtimespec.tv_nsec):\(st.st_ctimespec.tv_sec).\(st.st_ctimespec.tv_nsec)"
+  }
+
   /// Free space needed before a download starts: the file, 10% headroom and 1 GiB for the OS.
   static func requiredFreeBytes(_ sizeBytes: Int64) -> Int64 {
     sizeBytes + sizeBytes / 10 + 1024 * 1024 * 1024
@@ -144,7 +152,18 @@ public class ExpoContentStoreModule: Module {
     Function("fileInfo") { (relativePath: String) -> [String: Any] in
       let f = try self.content(relativePath)
       let exists = self.isFile(f)
-      return ["exists": exists, "sizeBytes": Double(exists ? self.size(f) : 0), "path": f.path]
+      let stamp: Any = (exists ? ContentRules.fileStamp(f) : nil) ?? NSNull()
+      return ["exists": exists, "sizeBytes": Double(exists ? self.size(f) : 0), "path": f.path, "stamp": stamp]
+    }
+
+    /// Downloads land under the content root already (and are not supported yet on iOS).
+    AsyncFunction("adoptDownload") { (fileName: String) -> String in
+      try self.content("tmp/\(fileName).partial").path
+    }
+
+    /// Android 7–10 only (packs moving into internal storage); nothing to move on iOS.
+    AsyncFunction("migrateLegacyContent") { () -> Double in
+      0
     }
 
     Function("listDir") { (dir: String) -> [[String: Any]] in

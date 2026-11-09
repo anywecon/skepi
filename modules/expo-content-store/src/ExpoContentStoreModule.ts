@@ -20,6 +20,8 @@ export interface ContentFileInfo {
   exists: boolean;
   sizeBytes: number;
   path: string;
+  /** Size, device, inode, modification and change time (null: no file). Equal stamps: unchanged file. */
+  stamp: string | null;
 }
 
 export interface ContentDirEntry {
@@ -62,6 +64,10 @@ declare class ExpoContentStoreNativeModule extends NativeModule<ContentStoreEven
   startDownload(url: string, fileName: string, title: string, allowMetered: boolean): Promise<number>;
   queryDownload(id: number): NativeDownload | null;
   removeDownload(id: number): boolean;
+  /** Moves a finished download under the content root (Android 7–10) and returns its absolute path. */
+  adoptDownload(fileName: string): Promise<string>;
+  /** Android 7–10: moves packs of older versions from external into internal storage; returns the count. */
+  migrateLegacyContent(): Promise<number>;
   fileInfo(relativePath: string): ContentFileInfo;
   listDir(dir: 'zim' | 'models' | 'maps' | 'tmp'): ContentDirEntry[];
   installFile(fromRelative: string, toRelative: string): Promise<string>;

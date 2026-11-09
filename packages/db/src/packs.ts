@@ -21,6 +21,8 @@ export interface PackRow {
   consentAt: number | null;
   installedAt: number;
   lastOpenedAt: number | null;
+  /** Native identity of the file when it was last hashed (null: never stamped; hashed at startup). */
+  fileStamp: string | null;
 }
 
 function num(v: unknown): number | null {
@@ -43,18 +45,19 @@ function toPack(r: Row): PackRow {
     consentAt: num(r.consent_at),
     installedAt: num(r.installed_at) ?? 0,
     lastOpenedAt: num(r.last_opened_at),
+    fileStamp: typeof r.file_stamp === 'string' ? r.file_stamp : null,
   };
 }
 
 /** Registers (or replaces) a pack; called in the same transaction as the atomic rename. */
 export async function upsertPack(db: SqlExecutor, p: PackRow): Promise<void> {
   await db.execute(
-    `INSERT INTO packs (id, kind, version, title, path, size_bytes, sha256, verified, catalog_seq, license, source, consent_at, installed_at, last_opened_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO packs (id, kind, version, title, path, size_bytes, sha256, verified, catalog_seq, license, source, consent_at, installed_at, last_opened_at, file_stamp)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, version = excluded.version, title = excluded.title, path = excluded.path,
        size_bytes = excluded.size_bytes, sha256 = excluded.sha256, verified = excluded.verified, catalog_seq = excluded.catalog_seq,
        license = excluded.license, source = excluded.source, consent_at = excluded.consent_at, installed_at = excluded.installed_at,
-       last_opened_at = excluded.last_opened_at`,
+       last_opened_at = excluded.last_opened_at, file_stamp = excluded.file_stamp`,
     [
       p.id,
       p.kind,
@@ -70,6 +73,7 @@ export async function upsertPack(db: SqlExecutor, p: PackRow): Promise<void> {
       p.consentAt,
       p.installedAt,
       p.lastOpenedAt,
+      p.fileStamp,
     ],
   );
 }

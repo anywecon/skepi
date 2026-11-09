@@ -7,7 +7,7 @@ use crate::catalog::{
     self, Catalog, CatalogPack, PackKind, Rejected, Rejection, SequenceState, TrustedKey, verify_catalog, verify_key_list,
 };
 use crate::db::{AppDb, DbError, PackRow, PackSource};
-use crate::hash::digest_file;
+use crate::hash::{digest_file, file_stamp};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
@@ -338,6 +338,7 @@ impl ContentStore {
             consent_at: None,
             installed_at: now_ms(),
             last_opened_at: None,
+            file_stamp: file_stamp(path).ok(),
         }
     }
 
@@ -421,6 +422,7 @@ impl ContentStore {
             consent_at: None,
             installed_at: now_ms(),
             last_opened_at: None,
+            file_stamp: file_stamp(&target).ok(),
         };
         self.db.upsert_pack(&row)?;
         Ok(row)
@@ -444,8 +446,9 @@ impl ContentStore {
         Ok(())
     }
 
-    /// Startup check (mobile `reconcile`): registered packs exist with their size; files the database
-    /// does not know are hashed once and registered when the catalog knows them (unverified ZIM
+    /// Startup check (mobile `reconcile`): registered packs exist with their size and file stamp (any
+    /// other identity is hashed again: a same-size replacement must not keep the verified state); files
+    /// the database does not know are hashed once and registered when the catalog knows them (unverified ZIM
     /// otherwise; unknown models, maps and places are listed and never opened); stale partials go.
     pub fn reconcile(&self, mut progress: impl FnMut(&str, u64, u64)) -> Result<ReconcileReport, ContentError> {
         let catalog = self.catalog();
@@ -464,13 +467,18 @@ impl ContentStore {
                 report.missing.push(p.id);
                 continue;
             }
-            if meta.len() == p.size_bytes {
+            // Taken before hashing: a write during the hash changes it again, so the next start hashes again.
+            let stamp = file_stamp(&path).ok();
+            if meta.len() == p.size_bytes && stamp.is_some() && stamp == p.file_stamp {
                 continue;
             }
             let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
             let d = digest_file(&path, catalog::CATALOG_CHUNK_SIZE, None, |h, t| progress(&name, h, t))?;
             let entry = catalog.as_ref().and_then(|c| c.find_by_sha256(&d.sha256).cloned());
-            report.changed.push(p.id.clone());
+            let same_bytes = d.sha256 == p.sha256 && d.size_bytes == p.size_bytes;
+            if !same_bytes {
+                report.changed.push(p.id.clone());
+            }
             if p.kind != PackKind::Zim && entry.is_none() {
                 self.db.remove_pack(&p.id)?;
                 if p.kind == PackKind::Gguf {
@@ -486,7 +494,9 @@ impl ContentStore {
                 size_bytes: d.size_bytes,
                 verified,
                 catalog_seq: if verified { catalog.as_ref().map(|c| c.sequence) } else { None },
-                consent_at: if verified { None } else { p.consent_at },
+                // Consent was given to the old bytes.
+                consent_at: if verified || !same_bytes { None } else { p.consent_at },
+                file_stamp: stamp,
                 ..p
             })?;
         }
@@ -524,6 +534,7 @@ impl ContentStore {
                         consent_at: None,
                         installed_at: now_ms(),
                         last_opened_at: None,
+                        file_stamp: file_stamp(&path).ok(),
                     })?;
                     report.unverified.push(name);
                 } else {

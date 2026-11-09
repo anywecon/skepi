@@ -1,6 +1,7 @@
 package org.skepi.zim
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import expo.modules.kotlin.exception.CodedException
 import org.kiwix.libkiwix.JNIKiwix
@@ -73,8 +74,12 @@ internal object ZimRegistry {
     Log.i(TAG, "native init ${nativeInitMs}ms, icu=${icuDataDir ?: "none"}")
   }
 
-  /** App-specific external storage (no permission needed, real filesystem path). */
-  fun contentRoot(context: Context): File? = context.getExternalFilesDir(null)
+  /**
+   * The ContentStore's root (ContentRules.contentRoot in expo-content-store): app-specific external
+   * storage from Android 11, internal storage on Android 7–10 (other apps could write external there).
+   */
+  fun contentRoot(context: Context): File? =
+    if (Build.VERSION.SDK_INT >= 30) context.getExternalFilesDir(null) else File(context.filesDir, "content")
 
   /**
    * Only files inside the app's own storage may be opened. Canonical paths defeat `..` and

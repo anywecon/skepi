@@ -1,7 +1,14 @@
-**Current:** v0.2.3-preview prepared, not tagged or signed — release commit `1e5f54cca367` on main, CI and `android-repro` run 42752077871 green (unsigned `4a86b9af…5698`, = fdroid-build); v0.2.2-preview not released (upgrade regression, tag deleted)
-**Next step:** owner: push tag `v0.2.3-preview` on `1e5f54cca3679f3a7e4f718d55b64e02f315412b`, download the run's artifact, sign (`sign-release-apk.ps1 -Tag v0.2.3-preview -RunId 42752077871`); then step 6 on the signed APK: `e2e/run-upgrade-gate.ps1 -Candidate <signed>` must PASS, `install -r` on the S23 + full Maestro + ICU + hand-offs by hand. Re-sign the catalog with the new repo URL; update MR 53588. Still open: delete `SKEPI_RELEASE_*_PASSWORD` from `~/.gradle/gradle.properties` (owner).
-**Last session:** 2026-11-10 — v0.2.2 signed candidate failed step 6 (catalog-3 map/places dropped on upgrade); fixed with pack trust across catalogs + revocation, upgrade gate added (validated: catches v0.2.2, passes v0.2.1); v0.2.3 prep pushed; gate green apart from Norton-blocked station_server (7/7 on CI)
+**Current:** v0.2.3-preview signed (tag on `1e5f54cca367`, signed APK `c6f00304…4c34`, cert `7d61c382…447e`) — step 6 done apart from the manual hand-off check; not published
+**Next step:** owner: hand-offs by hand on the S23 (SMS, share sheet, dialler; back out without sending), then step 7 (GitHub release with the signed APK, SHA256SUMS, cert, run 42752077871) and F-Droid MR 53588. Optional: delete the two orphaned catalog-3 files (map-gr-20261005.pmtiles, places-gr-20261004.sqlite) in org.skepi.app's maps folder. Still open: delete `SKEPI_RELEASE_*_PASSWORD` from `~/.gradle/gradle.properties` (owner).
+**Last session:** 2026-11-10 — v0.2.3 step 6: UPGRADE GATE PASS (v0.1.2 and v0.2.1), S23 `install -r` over v0.2.2 keeps all 5 packs Verified, Maestro 10/10 airplane mode (0 blocked, 0 downloads, 0 bytes, 0 intents), ICU ignored (`icu=none`)
 
+
+## 2026-11-10 (3): v0.2.3-preview step 6 on the signed APK (not published)
+- Signed APK `skepi-0.2.3-preview-arm64.apk` SHA-256 `c6f003049c6f76ac3360c1f6bf2d4ca77ea923ca14c7f53efc22b0dac7a34c34`, v2 signer `7d61c382…447e` (= AllowedAPKSigningKeys), vc 8; unsigned `4a86b9af…5698` from run 42752077871.
+- Upgrade gate (`e2e/run-upgrade-gate.ps1`, API 36 emulator): v0.1.2 PASS, v0.2.1 PASS → UPGRADE GATE: PASS.
+- S23 (device lock, airplane mode): `install -r` over the signed v0.2.2 (vc 7 → 8): Library before/after identical, 5 packs Verified (Qwen Q4_0, places-gr, map-gr, WikiMed, Wikipedia top EN). The "ignored" note for the orphaned catalog-3 files (left by v0.2.2) was there before the upgrade and stays until the files are deleted.
+- Maestro: onboarding, ask-en, ask-t1, medical, cards, blackout, places on the release app; tools and map-location on the debug build with `-MockLocation` (the release app gets no indoor fix and `-SimulateGnss` test-provider positions no longer reach it) — 10/10, 0 blocked, 0 downloads, 0 bytes, 0 intents, 0 foreign apps. ICU: `icu=none` with `icudt73l.dat` in the content folder (removed afterwards).
+- Open: hand-offs by hand (owner); publish (owner).
 
 ## 2026-11-10 (2): v0.2.2-preview withdrawn, v0.2.3-preview prepared (no tag, no release)
 
@@ -20,7 +27,8 @@
 - S23:
   - org.skepi.app is the signed v0.2.2 (vc 7) from step 6. Its Greece packs were re-provisioned from catalog 4 (map-gr-20261024, places-gr-20261023, SHA-256 checked) and are Verified. The old catalog-3 files are still in its maps folder, listed as ignored (not deleted).
   - org.skepi.app.dev: current debug build, test packs removed again.
-  - v0.2.2 files in `%TEMP%\skepielease` deleted.
+  - v0.2.2 files in `%TEMP%\skepi
+elease` deleted.
 - Open (review SHOULDs not done):
   - a revoked GGUF already loaded stays loaded until restart;
   - the post-update revocation report is not shown on the desktop until the next start;

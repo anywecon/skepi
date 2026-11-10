@@ -1,4 +1,4 @@
-import { pinnedKeys, trustedFromPinned, type PinnedKeyInput } from '@skepi/core';
+import { parseCatalog, pinnedKeys, trustedFromPinned, type PinnedKeyInput } from '@skepi/core';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -33,6 +33,15 @@ function readRevoked(path: string): string[] {
     .split(/\r?\n/)
     .map((l) => l.replace(/#.*$/, '').trim())
     .filter((l) => l.length > 0);
+}
+
+/**
+ * The previous catalog's revocations and the new ones: a revocation is never dropped by a later catalog
+ * (a device that skipped the revoking catalog still gets it).
+ */
+function revokedWith(previousCatalog: string, file: string | undefined): string[] {
+  const previous = existsSync(previousCatalog) ? (parseCatalog(JSON.parse(readFileSync(previousCatalog, 'utf8')) as unknown).revoked ?? []) : [];
+  return [...new Set([...previous, ...(file ? readRevoked(resolve(file)) : []).map((h) => h.toLowerCase())])];
 }
 
 const [command, ...rest] = process.argv.slice(2).filter((a, i) => !(i === 0 && a === '--'));
@@ -120,7 +129,7 @@ async function main(): Promise<number> {
         key,
         previousSequence: sequenceOf(previousPath),
         ...(args.sequence ? { sequence: Number(args.sequence) } : {}),
-        ...(args.revoked ? { revoked: readRevoked(resolve(args.revoked)) } : {}),
+        revoked: revokedWith(previousPath, args.revoked),
         ...(args['issued-at'] ? { issuedAt: args['issued-at'] } : {}),
         log: (line) => {
           console.log(line);
@@ -159,7 +168,7 @@ async function main(): Promise<number> {
         keyId: need('key-id', args['key-id']),
         previousSequence: sequenceOf(previous),
         ...(args.sequence ? { sequence: Number(args.sequence) } : {}),
-        ...(args.revoked ? { revoked: readRevoked(resolve(args.revoked)) } : {}),
+        revoked: revokedWith(previous, args.revoked),
         ...(args['issued-at'] ? { issuedAt: args['issued-at'] } : {}),
         log: (line) => {
           console.log(line);

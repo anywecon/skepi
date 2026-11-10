@@ -167,7 +167,7 @@ export interface Messages {
     size: (size: string) => string;
     licence: (licence: string) => string;
     verified: string;
-    /** A pack an older signed catalog verified; the current catalog lists a newer version. */
+    /** A pack an older signed catalog verified that the current catalog does not list (update it). */
     verifiedOlder: string;
     download: string;
     cancel: string;

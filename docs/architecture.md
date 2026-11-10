@@ -426,15 +426,18 @@ Every file the app opens (ZIM, GGUF, PMTiles, places DB) corresponds to an entry
   is Verified when its SHA-256 is in the current signed catalog, or when a valid signed catalog verified it
   before (its `packs` row is verified and holds that hash), its bytes are unchanged (file stamp, or a new
   hash equal to the row's) **and** the current catalog does not revoke the hash. The second case is shown as
-  "Verified (older catalog): a newer version is available" (`packTrust` in `packages/core/src/catalog.ts`), so
+  "Verified (older catalog)" (`packTrust` in `packages/core/src/catalog.ts`), so
   the user can update it; "Integrity check" compares it with the hash that verified it. Without this rule
   the v0.2.2 file-stamp migration dropped the Greece map and places of catalog 3 (v0.1.x) on upgrade,
   because catalog 4 lists newer versions. **Revocation:** a catalog may carry `"revoked": ["<sha256>", …]`
   (after `packs`; 64 lowercase hex, unique, never the hash of a pack it lists; `catalog build|prepare
-  --revoked <file>`). A revoked hash is never trusted: on every start (no hashing needed: the row's hash is
-  the verified one) and right after a catalog is adopted (update or P2P), revoked maps, places and models
-  are dropped from the registry (files stay on disk, never opened) and a revoked ZIM becomes unverified and
-  needs new consent; its integrity check fails. Apps before this field reject a catalog that has it as a
+  --revoked <file>`, which also keeps every hash the previous catalog revoked, so a device that skipped
+  the revoking catalog still gets it). A revoked hash is never trusted: on every start (no hashing needed:
+  the row's hash is the verified one, also for Android 7–10 packs still in external storage) and right
+  after a catalog is adopted (update or P2P; only the revocation pass then, so downloads and imports in
+  progress are left alone, and a running desktop Station stops), revoked maps, places and models are
+  dropped from the registry (files stay on disk, never opened) and a verified ZIM that is revoked becomes
+  unverified and needs consent, which then sticks; its integrity check fails. Apps before this field reject a catalog that has it as a
   whole (strict schema) and keep theirs, as with schema 2; the anti-rollback `sequence` keeps a revocation
   from being undone with an older catalog. Unit tests: `packages/core/test/catalog.test.ts`,
   `apps/mobile/test/contentStore.test.ts`, `crates/desktop-core/tests/content_integrity.rs`; the upgrade

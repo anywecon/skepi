@@ -213,12 +213,36 @@ fn a_revoked_hash_loses_its_trust_at_once() {
     let mut want = vec![map.id.clone(), zim.id.clone()];
     want.sort();
     assert_eq!(revoked, want);
-    assert!(report.rejected_maps.contains(&"map-xx-20261005.pmtiles".to_string()));
+    assert_eq!(report.rejected_maps, vec!["map-xx-20261005.pmtiles".to_string()]);
     assert!(s.db.get_pack(&map.id).expect("get").is_none());
     let after = s.db.get_pack(&zim.id).expect("get").expect("a ZIM stays listed");
     assert!(!after.verified && after.consent_at.is_none());
     let check = s.verify(&zim.id, None, |_, _| {}).expect("verify");
     assert!(!check.ok && check.revoked);
+    // Consent given again to the now unverified ZIM sticks across starts.
+    s.set_consent(&zim.id).expect("consent");
+    assert!(s.reconcile(|_, _, _| {}).expect("again").revoked.is_empty());
+    assert!(s.db.get_pack(&zim.id).expect("get").expect("listed").consent_at.is_some());
+}
+
+#[test]
+fn after_a_catalog_update_only_revocations_apply() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let (map, zim, partial) = {
+        let s = store(dir.path());
+        let map = pack_from_an_older_catalog(&s, PackKind::Pmtiles, "maps/map-xx-20261005.pmtiles", &[7u8; 4096]);
+        let zim = pack_from_an_older_catalog(&s, PackKind::Zim, "zim/old_2026-07.zim", &[9u8; 4096]);
+        s.reconcile(|_, _, _| {}).expect("first start");
+        let partial = Path::new(&map.path).parent().and_then(Path::parent).expect("root").join("tmp").join("map-yy.pmtiles.partial");
+        std::fs::create_dir_all(partial.parent().expect("tmp")).expect("mkdir");
+        std::fs::write(&partial, b"in progress").expect("partial");
+        (map, zim, partial)
+    };
+    let s = store_with_revoked(dir.path(), &[&map.sha256]);
+    assert_eq!(s.apply_revocations().expect("revocations"), vec![map.id.clone()]);
+    assert!(partial.exists(), "a partial file in progress is left alone");
+    assert!(s.db.get_pack(&map.id).expect("get").is_none());
+    assert!(s.db.get_pack(&zim.id).expect("get").expect("listed").verified);
 }
 
 #[test]

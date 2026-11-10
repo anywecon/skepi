@@ -183,8 +183,9 @@ export const useContent = create<ContentState>((set, get) => ({
     if (!chosen.catalog || !chosen.accepted) return rejection;
     await writeAcceptedCatalog(chosen.accepted);
     set({ catalog: current ? { ...current, catalog: chosen.catalog, origin: 'update', sha256: chosen.sha256 } : null });
-    // Hashes the new catalog revokes lose their trust now, not at the next start.
-    set({ reconcile: await contentStore.reconcile() });
+    // Hashes the new catalog revokes lose their trust now, not at the next start (only that pass: a
+    // download or import in progress is left alone).
+    await contentStore.applyRevocations();
     // The new catalog may name the country of installed map and places packs.
     await get().refresh();
     return null;

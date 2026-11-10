@@ -572,6 +572,37 @@ export class AndroidContentStore implements ContentStore {
    * differs, so a same-size replacement cannot keep the verified state, and for files the database
    * does not know, e.g. provisioned by the dev scripts).
    */
+  /**
+   * A hash the current catalog revokes is never trusted, whichever catalog verified it (no hashing: the
+   * row's hash is the one that was verified). Revoked maps, places and models leave the registry (the file
+   * stays, never opened); a verified ZIM becomes unverified and needs consent, which then sticks. Returns
+   * true when the row was changed or removed.
+   */
+  private async applyRevoked(db: SqlDatabase, catalog: Catalog | null, p: PackRow, revoked: string[]): Promise<boolean> {
+    if (!catalog || !isRevoked(catalog, p.sha256)) return false;
+    if (p.kind !== 'zim') {
+      await removePack(db, p.id);
+      revoked.push(p.id);
+      return true;
+    }
+    if (!p.verified) return false;
+    await upsertPack(db, { ...p, verified: false, catalogSeq: null, consentAt: null });
+    revoked.push(p.id);
+    return true;
+  }
+
+  /**
+   * After a catalog is adopted mid-session (update, P2P): only the revocation pass of `reconcile`, so that
+   * downloads, imports and partial files in progress are left alone. Returns the ids that lost their trust.
+   */
+  async applyRevocations(): Promise<string[]> {
+    const db = await this.db();
+    const catalog = this.catalog();
+    const revoked: string[] = [];
+    for (const p of await listPacks(db)) await this.applyRevoked(db, catalog, p, revoked);
+    return revoked;
+  }
+
   async reconcile(onProgress?: (file: string, hashed: number, total: number) => void): Promise<ReconcileReport> {
     const db = await this.db();
     const catalog = this.catalog();
@@ -591,6 +622,7 @@ export class AndroidContentStore implements ContentStore {
     const known = await listPacks(db);
     for (const p of known) {
       const file = p.path.split('/').pop() ?? '';
+      if (await this.applyRevoked(db, catalog, p, report.revoked)) continue;
       const info = ExpoContentStore.fileInfo(relativePath(p.kind, file));
       // A pack that could not move into internal storage yet stays registered where it is (also when
       // another file sits at its internal path).
@@ -598,18 +630,6 @@ export class AndroidContentStore implements ContentStore {
       if (!info.exists) {
         await removePack(db, p.id);
         report.missing.push(p.id);
-        continue;
-      }
-      // A hash the current catalog revokes is never trusted, whichever catalog verified it (checked on
-      // every start, without hashing: the row's hash is the one that was verified).
-      if (catalog && isRevoked(catalog, p.sha256)) {
-        report.revoked.push(p.id);
-        if (p.kind !== 'zim') {
-          await removePack(db, p.id);
-          (p.kind === 'gguf' ? report.rejectedModels : report.rejectedMaps).push(file);
-          continue;
-        }
-        if (p.verified || p.consentAt !== null) await upsertPack(db, { ...p, verified: false, catalogSeq: null, consentAt: null });
         continue;
       }
       // Taken before hashing: a write during the hash changes it again, so the next start hashes again.

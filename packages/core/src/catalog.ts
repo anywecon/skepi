@@ -348,7 +348,8 @@ function parseRevoked(v: unknown, packs: readonly CatalogPack[]): string[] {
 
 /**
  * How an installed pack is trusted under the current catalog: `verified-older` is a pack an older signed
- * catalog verified that the current one lists in another version (still trusted; the user can update it).
+ * catalog verified whose bytes the current one does not list (still trusted; usually it lists a newer
+ * version, which the user can install).
  */
 export function packTrust(
   catalog: { packs: readonly { sha256: string }[]; revoked?: readonly string[] } | null,

@@ -148,7 +148,7 @@ describe('an upgrade keeps packs an earlier signed catalog verified', () => {
     // hashed and listed as never opened like any other.
     expect(fakeFs.hashed.map((f) => f.split('/').pop())).toEqual(['map-xx-20261005.pmtiles']);
     expect(report.revoked.sort()).toEqual(['map-xx', SMOKE_ID].sort());
-    expect([...new Set(report.rejectedMaps)]).toEqual(['map-xx-20261005.pmtiles']);
+    expect(report.rejectedMaps).toEqual(['map-xx-20261005.pmtiles']);
     expect(await getPack(db, 'map-xx')).toBeNull();
     const after = await getPack(db, SMOKE_ID);
     expect(after?.verified).toBe(false);
@@ -158,6 +158,23 @@ describe('an upgrade keeps packs an earlier signed catalog verified', () => {
       expect(check.ok).toBe(false);
       expect(check.revoked).toBe(true);
     }
+    // Consent given again to the now unverified ZIM sticks across starts.
+    await store.consent(SMOKE_ID);
+    expect((await store.reconcile()).revoked).toEqual([]);
+    expect((await getPack(db, SMOKE_ID))?.consentAt).not.toBeNull();
+  });
+
+  it('after a catalog update only revocations apply: partial files and other packs are left alone', async () => {
+    await fromBeforeStamps();
+    await store.reconcile();
+    fakeFs.write('tmp/map-yy-20261024.pmtiles.partial', new Uint8Array(10));
+    store = new AndroidContentStore(() => Promise.resolve(db), () => ({ ...NEWER, sequence: NEWER.sequence + 1, revoked: [MAP_SHA] }));
+    fakeFs.hashed.length = 0;
+    expect(await store.applyRevocations()).toEqual(['map-xx']);
+    expect(fakeFs.hashed).toEqual([]);
+    expect(fakeFs.files.has('tmp/map-yy-20261024.pmtiles.partial')).toBe(true);
+    expect(await getPack(db, 'map-xx')).toBeNull();
+    expect((await getPack(db, SMOKE_ID))?.verified).toBe(true);
   });
 
   it('changed bytes of such a pack are not trusted: the map is dropped, the ZIM is unverified', async () => {
@@ -252,6 +269,24 @@ describe('Android 7–10 upgrade: packs move from external into internal storage
     fakeFs.hashed.length = 0;
     await store.reconcile();
     expect(fakeFs.hashed).toEqual([]);
+  });
+
+  it('a revoked pack still in external storage (not enough space) loses its trust too', async () => {
+    await legacySmoke();
+    fakeFs.freeBytes = 1024;
+    const original = CATALOG.packs.find((p) => p.id === SMOKE_ID)?.sha256 ?? '';
+    store = new AndroidContentStore(
+      () => Promise.resolve(db),
+      () => ({
+        ...CATALOG,
+        sequence: CATALOG.sequence + 1,
+        packs: CATALOG.packs.map((p) => (p.id === SMOKE_ID ? { ...p, sha256: 'b'.repeat(64), file: 'eval-smoke-en-v2.zim' } : p)),
+        revoked: [original],
+      }),
+    );
+    const report = await store.reconcile();
+    expect(report.revoked).toEqual([SMOKE_ID]);
+    expect((await getPack(db, SMOKE_ID))?.verified).toBe(false);
   });
 
   it('without enough internal space keeps the external copy, deletes nothing and says why', async () => {

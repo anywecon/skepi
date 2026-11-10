@@ -369,13 +369,15 @@ pub async fn content_cancel(state: State<'_, AppState>, pack_id: String) -> Res<
 pub async fn content_check_update(state: State<'_, AppState>) -> Res<Option<u64>> {
     let sequence = desktop_core::download::check_catalog_update(&state.store, &state.http).await.map_err(err)?;
     if sequence.is_some() {
-        // Hashes the new catalog revokes lose their trust now, not at the next start; open archives and
-        // places files are closed so that only packs still trusted open again.
+        // Hashes the new catalog revokes lose their trust now, not at the next start (only that pass: a
+        // download or import in progress is left alone). Open archives and places files are closed so that
+        // only packs still trusted open again, and a running Station stops (it shares a snapshot of the packs).
         let store = state.store.clone();
-        let report = blocking(move || store.reconcile(|_, _, _| {}).map_err(err)).await?;
-        if !report.revoked.is_empty() {
+        let revoked = blocking(move || store.apply_revocations().map_err(err)).await?;
+        if !revoked.is_empty() {
             state.zim.close_all();
             state.places.close_all();
+            state.station.stop("a pack it shared was revoked by the signed catalog");
         }
     }
     Ok(sequence)

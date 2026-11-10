@@ -183,7 +183,7 @@ export const en: Messages = {
     size: (size) => `Size ${size}`,
     licence: (licence) => `Licence ${licence}`,
     verified: 'Verified',
-    verifiedOlder: 'Verified (older catalog): a newer version is available',
+    verifiedOlder: 'Verified (older catalog)',
     download: 'Download',
     cancel: 'Cancel',
     remove: 'Remove',

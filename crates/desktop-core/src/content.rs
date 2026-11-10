@@ -506,6 +506,36 @@ impl ContentStore {
         Ok(())
     }
 
+    /// A hash the current catalog revokes is never trusted, whichever catalog verified it (no hashing: the
+    /// row's hash is the one that was verified). Revoked maps, places and models leave the registry (the
+    /// file stays, never opened); a verified ZIM becomes unverified and needs consent, which then sticks.
+    /// Returns true when the row was changed or removed.
+    fn apply_revoked(&self, catalog: Option<&Catalog>, p: &PackRow, revoked: &mut Vec<String>) -> Result<bool, ContentError> {
+        if !catalog.is_some_and(|c| c.is_revoked(&p.sha256)) {
+            return Ok(false);
+        }
+        if p.kind != PackKind::Zim {
+            self.db.remove_pack(&p.id)?;
+        } else if p.verified {
+            self.db.upsert_pack(&PackRow { verified: false, catalog_seq: None, consent_at: None, ..p.clone() })?;
+        } else {
+            return Ok(false);
+        }
+        revoked.push(p.id.clone());
+        Ok(true)
+    }
+
+    /// After a catalog is adopted mid-session (update): only the revocation pass of `reconcile`, so that
+    /// downloads, imports and partial files in progress are left alone. Returns the ids that lost their trust.
+    pub fn apply_revocations(&self) -> Result<Vec<String>, ContentError> {
+        let catalog = self.catalog();
+        let mut revoked = Vec::new();
+        for p in self.db.list_packs()? {
+            self.apply_revoked(catalog.as_ref(), &p, &mut revoked)?;
+        }
+        Ok(revoked)
+    }
+
     /// Startup check (mobile `reconcile`): registered packs exist with their size and file stamp (any
     /// other identity is hashed again: a same-size replacement must not keep the verified state); files
     /// the database does not know are hashed once and registered when the catalog knows them (unverified ZIM
@@ -528,16 +558,7 @@ impl ContentStore {
                 continue;
             }
             let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-            // A hash the current catalog revokes is never trusted, whichever catalog verified it (checked on
-            // every start, without hashing: the row's hash is the one that was verified).
-            if catalog.as_ref().is_some_and(|c| c.is_revoked(&p.sha256)) {
-                report.revoked.push(p.id.clone());
-                if p.kind != PackKind::Zim {
-                    self.db.remove_pack(&p.id)?;
-                    if p.kind == PackKind::Gguf { report.rejected_models.push(name) } else { report.rejected_maps.push(name) }
-                } else if p.verified || p.consent_at.is_some() {
-                    self.db.upsert_pack(&PackRow { verified: false, catalog_seq: None, consent_at: None, ..p })?;
-                }
+            if self.apply_revoked(catalog.as_ref(), &p, &mut report.revoked)? {
                 continue;
             }
             // Taken before hashing: a write during the hash changes it again, so the next start hashes again.

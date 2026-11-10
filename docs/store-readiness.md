@@ -322,11 +322,12 @@ comparison and `llvm-objcopy`/`llvm-readelf` from NDK 27.3 (diffoscope is not av
 ## 6. fdroiddata recipe (submitted 2026-10-22, merge request 53588; `fdroid build` in CI gives the published bytes)
 
 The recipe lives in `docs/fdroid/org.skepi.app.yml` (copied below). Since 2026-11-10 it is a **draft** for
-`v0.2.2-preview`, versionCode 7, one build: `commit:` is `1602ae71d7d3a6635d6dac14970db8b06596aee2` (to be
-tagged by the owner; no tag yet); `android-repro` run 42726446303 at that commit: (a), (b) and `fdroid-build`
-all `02364b1c783bad625dc91378ad8bd2305f336b2f4d4f15c42b9dd9bfcf4d5e98` (build (b) needed a re-run: the NDK
-download was reset on the runner). MR 53588 still carries the 0.2.1-preview file until the owner updates
-it. From 2026-11-04 to 2026-11-10 it targeted `v0.2.1-preview`, versionCode 6: `commit:` was
+`v0.2.3-preview`, versionCode 8, one build: `commit:` is `1e5f54cca3679f3a7e4f718d55b64e02f315412b` (to be
+tagged by the owner); `android-repro` run 42752077871 at that commit: (a), (b) and `fdroid-build` all
+`4a86b9af06bf8b646ff1bbbc57b77bc8d22ecff61eaaebff3c110c095e655698`. `v0.2.2-preview` (versionCode 7, commit
+`1602ae71d7d3`, unsigned `02364b1c…5e98`, run 42726446303) was not released: an upgrade regression was found
+before publishing and its tag was deleted. MR 53588 still carries the 0.2.1-preview file until the owner
+updates it. From 2026-11-04 to 2026-11-10 it targeted `v0.2.1-preview`, versionCode 6: `commit:` was
 `ebd321e03bdb65ee118e4ba592218e90e50514b2` (the tag, pushed 2026-11-05); `android-repro` run 41948574811: (a),
 (b) and `fdroid-build` all `a99ed9da81c1440fa9962acb06a8a973e5d88ce580a0259c9345444b4f36e74a`
 (`scripts/ci/fdroid-build.sh` expects one build in the recipe). MR 53588 carries that file since 2026-11-05
@@ -397,9 +398,9 @@ Repo: https://github.com/anywecon/skepi.git
 Binaries: https://github.com/anywecon/skepi/releases/download/v%v/skepi-%v-arm64.apk
 
 Builds:
-  - versionName: 0.2.2-preview
-    versionCode: 7
-    commit: 1602ae71d7d3a6635d6dac14970db8b06596aee2
+  - versionName: 0.2.3-preview
+    versionCode: 8
+    commit: 1e5f54cca3679f3a7e4f718d55b64e02f315412b
     subdir: apps/mobile
     sudo:
       - echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.d/forky.list
@@ -439,8 +440,8 @@ AllowedAPKSigningKeys: 7d61c38241b178f84b12dd9a67af6b60b56159b1a0ff067fe672db45d
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9.]+(-preview)?$
 UpdateCheckData: apps/mobile/app.json|"versionCode":\s*(\d+)|.|"version":\s*"([^"]+)"
-CurrentVersion: 0.2.2-preview
-CurrentVersionCode: 7
+CurrentVersion: 0.2.3-preview
+CurrentVersionCode: 8
 ```
 
 ## 7. Play Data safety answers

@@ -17,8 +17,8 @@ Pipeline 3032936740 on that commit was running at this check. Last reviewer note
 (licaon-kter): whether both `SKEPI_PREVIEW=1` and `-PskepiPreview=true` are needed. The owner answered the
 same day and offered to drop the property; the owner's later notes have no reply yet.
 
-**Open:** the MR's description still says 0.2.0-preview. The text below is its 0.2.2-preview version (draft:
-v0.2.2-preview is not tagged or published yet; `org.skepi.app.yml` already targets its commit).
+**Open:** the MR's description still says 0.2.0-preview. The text below is its 0.2.3-preview version (draft:
+v0.2.3-preview is not published yet; `org.skepi.app.yml` already targets its commit; 0.2.2-preview was not released).
 
 ---
 
@@ -35,9 +35,9 @@ number for the country, an SOS torch, a compass, and pack sharing between phones
 accounts, analytics, ads or telemetry.
 
 - Source: https://github.com/anywecon/skepi (GPL-3.0-or-later)
-- Release: https://github.com/anywecon/skepi/releases/tag/v0.2.2-preview
+- Release: https://github.com/anywecon/skepi/releases/tag/v0.2.3-preview
 - Screenshots: https://github.com/anywecon/skepi/tree/HEAD/fastlane/metadata/android/en-US/images/phoneScreenshots
-- Status: **Developer Preview** (`0.2.2-preview`), labelled "not for emergency use" in the app, the
+- Status: **Developer Preview** (`0.2.3-preview`), labelled "not for emergency use" in the app, the
   description and the release. The preview build (`SKEPI_PREVIEW=1 -PskepiPreview=true`) adds a permanent
   "not for emergency use" label. The emergency cards quote their sources word for word with citations
   (first aid: IFRC Guidelines 2025; water, earthquake, fire, flood: CDC and FEMA Ready.gov); a CI check
@@ -58,9 +58,9 @@ upstream-signed APK:
 - `fdroid build` of this recipe (fdroidserver at the commit fdroiddata pins, in
   `registry.gitlab.com/fdroid/fdroidserver:buildserver-trixie`) runs in the upstream CI and gives the same
   bytes as two independent CI builds on different runners and paths: SHA-256
-  `02364b1c783bad625dc91378ad8bd2305f336b2f4d4f15c42b9dd9bfcf4d5e98` at `1602ae71d7d3` (GitHub Actions run
-  42726446303).
-- The release APK `skepi-0.2.2-preview-arm64.apk` is that unsigned APK signed with APK Signature Scheme v2
+  `4a86b9af06bf8b646ff1bbbc57b77bc8d22ecff61eaaebff3c110c095e655698` at `1e5f54cca367` (GitHub Actions run
+  42752077871).
+- The release APK `skepi-0.2.3-preview-arm64.apk` is that unsigned APK signed with APK Signature Scheme v2
   only, with the byte layout preserved; before publishing, its signature was copied onto the CI build with
   apksigcopier 1.1.1 and verified byte-identical, as fdroidserver does. Signer certificate SHA-256
   `7d61c38241b178f84b12dd9a67af6b60b56159b1a0ff067fe672db45dd45447e`.

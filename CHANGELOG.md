@@ -5,15 +5,21 @@ suffix. Phase reports in `docs/` have the details and the measurements.
 
 ## [Unreleased]
 
-## [0.2.2-preview] — Developer Preview (Android + Windows)
+## [0.2.3-preview] — Developer Preview (Android + Windows)
 
-Sixth preview, for developers and testers. **Not for emergency use.** A security hardening update; the
-signed catalog, the packs and the emergency cards are unchanged.
+Sixth published preview, for developers and testers. **Not for emergency use.** A security hardening
+update; it contains every change of the unreleased 0.2.2-preview and the fix for its upgrade regression.
+The signed catalog, the packs and the emergency cards are unchanged.
 
 ### Security
 - Installed packs are bound to the file on disk, not only to its size: any change to a pack file since
-  the last start makes the app hash it again, and a pack that no longer matches the signed catalog loses
-  its verified state (Android and Windows).
+  the last start makes the app hash it again, and a pack whose bytes changed loses its verified state
+  (Android and Windows).
+- Packs verified by an earlier signed catalog stay verified while their bytes are unchanged, also when
+  the current catalog lists a newer version: Library shows them as "Verified (older catalog)", so they can
+  be updated. The signed catalog can now revoke pack hashes; a revoked pack is never opened
+  again (a revoked Wikipedia pack becomes unverified), at the next start or right after a catalog update.
+  The integrity check compares a pack with the hash that verified it.
 - Android 7–10: packs are stored in the app's internal storage, where other apps cannot write. Packs of
   earlier versions move there at the first start; the old copy is removed only after the new one matched
   the signed catalog. If there is not enough space, nothing is deleted and Library says so.
@@ -39,6 +45,13 @@ signed catalog, the packs and the emergency cards are unchanged.
 
 ### Changed
 - The repository moved to <https://github.com/anywecon/skepi>; the old address redirects.
+
+## [0.2.2-preview] — not released
+
+Not released (upgrade regression found before publishing): on the first start after the upgrade it
+stopped trusting map and places packs that the catalog of 0.1.x had verified (the Greece map and places
+of catalog 3), because the current catalog lists newer versions. Its tag was deleted; 0.2.3-preview
+contains all of its changes and the fix.
 
 ## [0.2.1-preview] — Developer Preview (Android + Windows)
 

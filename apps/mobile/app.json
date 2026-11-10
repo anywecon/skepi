@@ -2,14 +2,14 @@
   "expo": {
     "name": "SKEPI",
     "slug": "skepi",
-    "version": "0.2.2-preview",
+    "version": "0.2.3-preview",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "skepi",
     "userInterfaceStyle": "light",
     "ios": {
       "bundleIdentifier": "org.skepi.app",
-      "buildNumber": "7",
+      "buildNumber": "8",
       "supportsTablet": false,
       "config": {
         "usesNonExemptEncryption": false
@@ -21,7 +21,7 @@
     },
     "android": {
       "package": "org.skepi.app",
-      "versionCode": 7,
+      "versionCode": 8,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",

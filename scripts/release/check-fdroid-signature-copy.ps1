@@ -10,7 +10,7 @@
   No key is involved: the check reads the two APKs only.
 
 .EXAMPLE
-  ./scripts/release/check-fdroid-signature-copy.ps1 -Signed $env:TEMP\skepi\release\skepi-0.2.2-preview-arm64.apk -Unsigned $env:TEMP\skepi\release\skepi-0.2.2-preview-arm64-unsigned.apk
+  ./scripts/release/check-fdroid-signature-copy.ps1 -Signed $env:TEMP\skepi\release\skepi-0.2.3-preview-arm64.apk -Unsigned $env:TEMP\skepi\release\skepi-0.2.3-preview-arm64-unsigned.apk
 #>
 [CmdletBinding()]
 param(

@@ -78,7 +78,9 @@ came as prebuilt AARs from `node_modules`). Every CMake build loads `apps/mobile
    ```powershell
    ./scripts/release/check-fdroid-signature-copy.ps1 -Signed <signed.apk> -Unsigned <unsigned.apk>
    ```
-6. **Smoke test.** `adb install -r` the signed APK on the S23 and run `e2e/run-e2e.ps1` (airplane mode).
+6. **Smoke test.** `adb install -r` the signed APK on the S23 and run `e2e/run-e2e.ps1` (airplane mode),
+   then `e2e/run-e2e.ps1 -Only tools,map-location -MockLocation` (indoors the release app gets no GNSS fix; the
+   debug build's mock provider gives one).
    It installs over the previous release (same certificate); never uninstall `org.skepi.app` (no backup:
    `allowBackup=false`). This is the only run of the release build on the phone: development runs use
    `org.skepi.app.dev`, so the release-only checks happen here, before publishing:

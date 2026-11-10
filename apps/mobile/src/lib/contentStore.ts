@@ -423,8 +423,9 @@ export class AndroidContentStore implements ContentStore {
   /** Full integrity check: hash the installed file and compare with the registered/catalog hash. */
   async verify(pack: InstalledPack, onProgress?: (hashed: number, total: number) => void): Promise<VerifyResult> {
     const digest = await hashFile(pack.path, onProgress ? { onProgress } : {});
-    const catalog = this.catalog();
-    const expected = catalog?.packs.find((p) => p.id === pack.id)?.sha256 ?? pack.sha256;
+    // A verified pack is checked against the digest a signed catalog verified (an older catalog's for a
+    // pack the current catalog lists in a newer version); anything else against the current catalog.
+    const expected = pack.verified ? pack.sha256 : (this.catalog()?.packs.find((p) => p.id === pack.id)?.sha256 ?? pack.sha256);
     return { ok: digest.sha256 === expected, sha256: digest.sha256, expected };
   }
 
@@ -599,7 +600,10 @@ export class AndroidContentStore implements ContentStore {
       const entry = catalog ? findPackBySha256(catalog, digest.sha256) : null;
       const sameBytes = digest.sha256 === p.sha256 && digest.sizeBytes === p.sizeBytes;
       if (!sameBytes) report.changed.push(p.id);
-      if (p.kind !== 'zim' && !entry) {
+      // Unchanged bytes that an earlier signed catalog verified stay verified when the current catalog
+      // lists a newer version instead (packs from before file stamps are hashed once after the upgrade).
+      const stillVerified = !entry && sameBytes && p.verified;
+      if (p.kind !== 'zim' && !entry && !stillVerified) {
         // Unverified models, maps and places are never opened (app.db forbids them, too).
         await removePack(db, p.id);
         (p.kind === 'gguf' ? report.rejectedModels : report.rejectedMaps).push(file);
@@ -610,8 +614,8 @@ export class AndroidContentStore implements ContentStore {
         path: info.path,
         sha256: digest.sha256,
         sizeBytes: digest.sizeBytes,
-        verified: entry !== null,
-        catalogSeq: entry ? (catalog?.sequence ?? null) : null,
+        verified: entry !== null || stillVerified,
+        catalogSeq: entry ? (catalog?.sequence ?? null) : stillVerified ? p.catalogSeq : null,
         // Consent was given to the old bytes.
         consentAt: entry || !sameBytes ? null : p.consentAt,
         fileStamp: info.stamp,

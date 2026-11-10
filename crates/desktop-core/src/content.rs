@@ -479,7 +479,13 @@ impl ContentStore {
     pub fn verify(&self, id: &str, cancel: Option<&AtomicBool>, progress: impl FnMut(u64, u64)) -> Result<VerifyResult, ContentError> {
         let p = self.db.get_pack(id)?.ok_or_else(|| ContentError::UnknownPack(id.into()))?;
         let d = digest_file(Path::new(&p.path), catalog::CATALOG_CHUNK_SIZE, cancel, progress)?;
-        let expected = self.catalog().and_then(|c| c.find(&p.id).map(|e| e.sha256.clone())).or(Some(p.sha256.clone()));
+        // A verified pack is checked against the digest a signed catalog verified (an older catalog's for a
+        // pack the current catalog lists in a newer version); anything else against the current catalog.
+        let expected = if p.verified {
+            Some(p.sha256.clone())
+        } else {
+            self.catalog().and_then(|c| c.find(&p.id).map(|e| e.sha256.clone())).or(Some(p.sha256.clone()))
+        };
         Ok(VerifyResult { ok: expected.as_deref() == Some(d.sha256.as_str()), sha256: d.sha256, expected })
     }
 
@@ -527,7 +533,10 @@ impl ContentStore {
             if !same_bytes {
                 report.changed.push(p.id.clone());
             }
-            if p.kind != PackKind::Zim && entry.is_none() {
+            // Unchanged bytes that an earlier signed catalog verified stay verified when the current catalog
+            // lists a newer version instead (packs from before file stamps are hashed once after the upgrade).
+            let still_verified = entry.is_none() && same_bytes && p.verified;
+            if p.kind != PackKind::Zim && entry.is_none() && !still_verified {
                 self.db.remove_pack(&p.id)?;
                 if p.kind == PackKind::Gguf {
                     report.rejected_models.push(name)
@@ -536,12 +545,18 @@ impl ContentStore {
                 }
                 continue;
             }
-            let verified = entry.is_some();
+            let verified = entry.is_some() || still_verified;
             self.db.upsert_pack(&PackRow {
                 sha256: d.sha256,
                 size_bytes: d.size_bytes,
                 verified,
-                catalog_seq: if verified { catalog.as_ref().map(|c| c.sequence) } else { None },
+                catalog_seq: if entry.is_some() {
+                    catalog.as_ref().map(|c| c.sequence)
+                } else if still_verified {
+                    p.catalog_seq
+                } else {
+                    None
+                },
                 // Consent was given to the old bytes.
                 consent_at: if verified || !same_bytes { None } else { p.consent_at },
                 file_stamp: stamp,

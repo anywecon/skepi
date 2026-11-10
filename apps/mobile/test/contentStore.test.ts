@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseCatalog, type Catalog } from '@skepi/core';
@@ -85,6 +86,64 @@ describe('reconcile binds the verified state to the file, not to its size', () =
     await store.reconcile();
     expect(fakeFs.hashed).toEqual([]);
     expect((await getPack(db, SMOKE_ID))?.verified).toBe(true);
+  });
+});
+
+describe('an upgrade keeps packs an earlier signed catalog verified', () => {
+  // v0.1.x shipped catalog 3 with map-gr-20261005; catalog 4 lists map-gr-20261024 instead.
+  // The newer catalog lists the same pack id in another version (other bytes).
+  const NEWER: Catalog = {
+    ...CATALOG,
+    sequence: CATALOG.sequence + 1,
+    packs: CATALOG.packs.map((p) => (p.id === SMOKE_ID ? { ...p, sha256: 'a'.repeat(64), file: 'eval-smoke-en-v2.zim' } : p)),
+  };
+  const MAP = new Uint8Array(4096).fill(7);
+  const MAP_SHA = createHash('sha256').update(MAP).digest('hex');
+
+  async function fromBeforeStamps(): Promise<void> {
+    await installSmoke();
+    const row = await getPack(db, SMOKE_ID);
+    if (!row) throw new Error('not installed');
+    await upsertPack(db, { ...row, fileStamp: null });
+    fakeFs.write('maps/map-xx-20261005.pmtiles', MAP);
+    await upsertPack(db, {
+      ...row,
+      id: 'map-xx',
+      kind: 'pmtiles',
+      title: 'Map: XX',
+      path: fakeFs.abs('maps/map-xx-20261005.pmtiles'),
+      sizeBytes: MAP.length,
+      sha256: MAP_SHA,
+      verified: true,
+      catalogSeq: CATALOG.sequence,
+      consentAt: null,
+      fileStamp: null,
+    });
+    store = new AndroidContentStore(() => Promise.resolve(db), () => NEWER);
+  }
+
+  it('unchanged map and ZIM packs stay verified, with the catalog that verified them', async () => {
+    await fromBeforeStamps();
+    const report = await store.reconcile();
+    expect(report.rejectedMaps).toEqual([]);
+    expect(report.changed).toEqual([]);
+    for (const id of [SMOKE_ID, 'map-xx']) {
+      const p = await getPack(db, id);
+      expect(p?.verified).toBe(true);
+      expect(p?.catalogSeq).toBe(CATALOG.sequence);
+      expect(p?.fileStamp).not.toBeNull();
+      if (p) expect((await store.verify(p)).ok).toBe(true);
+    }
+  });
+
+  it('changed bytes of such a pack are not trusted: the map is dropped, the ZIM is unverified', async () => {
+    await fromBeforeStamps();
+    fakeFs.overwriteInPlace('maps/map-xx-20261005.pmtiles', flipped(MAP), false);
+    fakeFs.overwriteInPlace(fakeFs.rel((await getPack(db, SMOKE_ID))?.path ?? ''), flipped(SMOKE), false);
+    const report = await store.reconcile();
+    expect([...new Set(report.rejectedMaps)]).toEqual(['map-xx-20261005.pmtiles']);
+    expect(await getPack(db, 'map-xx')).toBeNull();
+    expect((await getPack(db, SMOKE_ID))?.verified).toBe(false);
   });
 });
 

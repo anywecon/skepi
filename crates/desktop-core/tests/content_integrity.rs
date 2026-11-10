@@ -2,8 +2,10 @@
 //! identity, and the startup reconcile must hash it again instead of trusting the size alone. A pack
 //! whose bytes no longer match the signed catalog loses its verified state.
 
+use desktop_core::catalog::{CATALOG_CHUNK_SIZE, PackKind};
 use desktop_core::content::{ContentStore, EmbeddedCatalog};
 use desktop_core::db::{AppDb, PackRow};
+use desktop_core::hash::digest_file;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -123,6 +125,61 @@ fn same_size_replacement_by_rename_with_restored_mtime_loses_verified() {
     let (after, changed) = after_reconcile(&s, &row.id);
     assert_eq!(changed, vec![row.id.clone()]);
     assert!(!after.verified);
+}
+
+/// A pack verified by an earlier signed catalog that the current catalog no longer lists (v0.1.x shipped
+/// catalog 3 with map-gr-20261005; catalog 4 lists map-gr-20261024), registered before file stamps.
+fn pack_from_an_older_catalog(s: &ContentStore, kind: PackKind, rel: &str, bytes: &[u8]) -> PackRow {
+    let base = install_verified(s);
+    // The content root as the store spells it (<root>/zim/<file>).
+    let root = Path::new(&base.path).parent().and_then(Path::parent).expect("content root").to_path_buf();
+    let path = rel.split('/').fold(root, |p, part| p.join(part));
+    std::fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
+    std::fs::write(&path, bytes).expect("write");
+    let d = digest_file(&path, CATALOG_CHUNK_SIZE, None, |_, _| {}).expect("digest");
+    let row = PackRow {
+        id: format!("old-{}", rel.replace(['/', '.'], "-")),
+        kind,
+        path: path.to_string_lossy().into_owned(),
+        size_bytes: d.size_bytes,
+        sha256: d.sha256,
+        verified: true,
+        catalog_seq: Some(3),
+        consent_at: None,
+        file_stamp: None,
+        ..base
+    };
+    s.db.upsert_pack(&row).expect("upsert");
+    row
+}
+
+#[test]
+fn packs_verified_by_an_earlier_catalog_stay_verified_after_the_upgrade() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let s = store(dir.path());
+    let map = pack_from_an_older_catalog(&s, PackKind::Pmtiles, "maps/map-xx-20261005.pmtiles", &[7u8; 4096]);
+    let zim = pack_from_an_older_catalog(&s, PackKind::Zim, "zim/old_2026-07.zim", &[9u8; 4096]);
+    let report = s.reconcile(|_, _, _| {}).expect("reconcile");
+    assert!(report.rejected_maps.is_empty(), "{:?}", report.rejected_maps);
+    assert!(report.changed.is_empty(), "{:?}", report.changed);
+    for row in [&map, &zim] {
+        let after = s.db.get_pack(&row.id).expect("get").expect("still listed");
+        assert!(after.verified, "{} lost its verified state", row.id);
+        assert_eq!(after.catalog_seq, Some(3));
+        assert!(after.file_stamp.is_some());
+        assert!(s.verify(&row.id, None, |_, _| {}).expect("verify").ok, "{}: integrity check", row.id);
+    }
+}
+
+#[test]
+fn changed_bytes_of_a_pack_from_an_earlier_catalog_are_not_trusted() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let s = store(dir.path());
+    let map = pack_from_an_older_catalog(&s, PackKind::Pmtiles, "maps/map-xx-20261005.pmtiles", &[7u8; 4096]);
+    tamper_in_place(Path::new(&map.path), true);
+    let report = s.reconcile(|_, _, _| {}).expect("reconcile");
+    assert!(report.rejected_maps.contains(&"map-xx-20261005.pmtiles".to_string()));
+    assert!(s.db.get_pack(&map.id).expect("get").is_none());
 }
 
 #[tokio::test]

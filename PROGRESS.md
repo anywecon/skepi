@@ -1,7 +1,31 @@
-**Current:** v0.2.2-preview prepared, not tagged or published — release commit `1602ae71d7d3` on main, CI green, `android-repro` run 42726446303 green (unsigned `02364b1c…5e98`, = fdroid-build); F-Droid recipe draft at that commit
-**Next step:** owner: tag `v0.2.2-preview` on `1602ae71d7d3a6635d6dac14970db8b06596aee2`, download the run's artifact, sign with `sign-release-apk.ps1 -Tag v0.2.2-preview -RunId 42726446303`, then the release-only checks of `docs/release-process.md` step 6 on the S23 (`install -r` over org.skepi.app: full Maestro incl. onboarding, ICU ignored, old packs verified, hand-offs by hand); re-sign the catalog with the new repo URL; update MR 53588. Still open from before: delete `SKEPI_RELEASE_STORE_PASSWORD` / `SKEPI_RELEASE_KEY_PASSWORD` from `~/.gradle/gradle.properties` (owner).
-**Last session:** 2026-11-10 — hardening pass pushed (`8c2e79d..1602ae7`) + repo rename + v0.2.2 prep; S23: connectedAndroidTest all pass, Maestro 8/8 + heldout on org.skepi.app.dev (airplane, 0 bytes, 0 hand-off intents); API 29/24 AVDs migration tests pass; desktop gate green apart from Norton-blocked station_server (6/6 on CI)
+**Current:** v0.2.3-preview prepared, not tagged or signed — release commit `1e5f54cca367` on main, CI and `android-repro` run 42752077871 green (unsigned `4a86b9af…5698`, = fdroid-build); v0.2.2-preview not released (upgrade regression, tag deleted)
+**Next step:** owner: push tag `v0.2.3-preview` on `1e5f54cca3679f3a7e4f718d55b64e02f315412b`, download the run's artifact, sign (`sign-release-apk.ps1 -Tag v0.2.3-preview -RunId 42752077871`); then step 6 on the signed APK: `e2e/run-upgrade-gate.ps1 -Candidate <signed>` must PASS, `install -r` on the S23 + full Maestro + ICU + hand-offs by hand. Re-sign the catalog with the new repo URL; update MR 53588. Still open: delete `SKEPI_RELEASE_*_PASSWORD` from `~/.gradle/gradle.properties` (owner).
+**Last session:** 2026-11-10 — v0.2.2 signed candidate failed step 6 (catalog-3 map/places dropped on upgrade); fixed with pack trust across catalogs + revocation, upgrade gate added (validated: catches v0.2.2, passes v0.2.1); v0.2.3 prep pushed; gate green apart from Norton-blocked station_server (7/7 on CI)
 
+
+## 2026-11-10 (2): v0.2.2-preview withdrawn, v0.2.3-preview prepared (no tag, no release)
+
+- Found in release step 6 on the signed v0.2.2 (`install -r` over v0.2.1 on the S23): the first start after the file-stamp migration rehashed every pack and dropped map-gr-20261005 / places-gr-20261004 (verified by catalog 3, shipped with v0.1.x) because catalog 4 lists newer files. Owner: v0.2.2 not released, tag deleted; v0.2.3-preview (versionCode 8).
+- Done:
+  - pack trust across catalogs: unchanged bytes verified by an earlier signed catalog stay verified, shown as "Verified (older catalog)";
+  - the signed catalog can revoke hashes (`revoked`, both parsers, builder `--revoked`, carried forward). Applied on every start, also to Android 7–10 packs still in external storage, and right after a catalog is adopted (revocation pass only; a running Station stops). Consent for a revoked ZIM sticks once given again; the integrity check uses the hash that verified the pack.
+  - upgrade gate `e2e/run-upgrade-gate.ps1` (API 36 emulator, published v0.1.2 / v0.2.1 APKs with their catalog packs, then the signed candidate) and `crates/desktop-core/tests/upgrade.rs` (in CI); release-process step 6.
+  - CHANGELOG (0.2.2 "not released"), release notes v0.2.3, changelogs/8.txt, F-Droid recipe draft at `1e5f54cca367`.
+- Verified:
+  - gate validated: v0.2.2 candidate → v0.1.2 scenario FAIL (map-gr gone), v0.2.1 scenario PASS; the desktop upgrade test fails with the trust rule switched off.
+  - pnpm verify 50/50, mobile 30/30, cargo 62 + 5 Norton-blocked (CI 7/7), fmt, clippy, deny, tauri build, smoke 34/34, Playwright 17/17, gitleaks clean, osv HIGH only the 2 accepted (+ RUSTSEC-2026-0459, accepted).
+  - Maestro 8/8 on org.skepi.app.dev in airplane mode (0 bytes, 0 hand-off intents).
+  - CI 42752077817 and android-repro 42752077871 green; provenance check PASS without a tag.
+  - Code review: 2 MUST-FIX fixed (revocation before the Android 7–10 skip; revocation-only pass after an update).
+- S23:
+  - org.skepi.app is the signed v0.2.2 (vc 7) from step 6. Its Greece packs were re-provisioned from catalog 4 (map-gr-20261024, places-gr-20261023, SHA-256 checked) and are Verified. The old catalog-3 files are still in its maps folder, listed as ignored (not deleted).
+  - org.skepi.app.dev: current debug build, test packs removed again.
+  - v0.2.2 files in `%TEMP%\skepielease` deleted.
+- Open (review SHOULDs not done):
+  - a revoked GGUF already loaded stays loaded until restart;
+  - the post-update revocation report is not shown on the desktop until the next start;
+  - the desktop upgrade test does not model anti-rollback state, a GGUF or a consented unverified ZIM;
+  - unknown map files are hashed again on every start (pre-existing).
 
 ## 2026-11-10: device tests, push, v0.2.2-preview prepared (no tag, no release)
 

@@ -321,11 +321,16 @@ comparison and `llvm-objcopy`/`llvm-readelf` from NDK 27.3 (diffoscope is not av
 
 ## 6. fdroiddata recipe (submitted 2026-10-22, merge request 53588; `fdroid build` in CI gives the published bytes)
 
-The recipe lives in `docs/fdroid/org.skepi.app.yml` (copied below). Since 2026-11-04 it targets
-`v0.2.1-preview`, versionCode 6, one build: `commit:` is `ebd321e03bdb65ee118e4ba592218e90e50514b2` (the tag,
-pushed 2026-11-05); `android-repro` run 41948574811 with this recipe: (a), (b) and `fdroid-build` all
-`a99ed9da81c1440fa9962acb06a8a973e5d88ce580a0259c9345444b4f36e74a` (`scripts/ci/fdroid-build.sh` expects one
-build in the recipe). MR 53588 carries the same file since 2026-11-05 (`b879aa18`). From 2026-10-25
+The recipe lives in `docs/fdroid/org.skepi.app.yml` (copied below). Since 2026-11-10 it is a **draft** for
+`v0.2.2-preview`, versionCode 7, one build: `commit:` is `1602ae71d7d3a6635d6dac14970db8b06596aee2` (to be
+tagged by the owner; no tag yet); `android-repro` run 42726446303 at that commit: (a), (b) and `fdroid-build`
+all `02364b1c783bad625dc91378ad8bd2305f336b2f4d4f15c42b9dd9bfcf4d5e98` (build (b) needed a re-run: the NDK
+download was reset on the runner). MR 53588 still carries the 0.2.1-preview file until the owner updates
+it. From 2026-11-04 to 2026-11-10 it targeted `v0.2.1-preview`, versionCode 6: `commit:` was
+`ebd321e03bdb65ee118e4ba592218e90e50514b2` (the tag, pushed 2026-11-05); `android-repro` run 41948574811: (a),
+(b) and `fdroid-build` all `a99ed9da81c1440fa9962acb06a8a973e5d88ce580a0259c9345444b4f36e74a`
+(`scripts/ci/fdroid-build.sh` expects one build in the recipe). MR 53588 carries that file since 2026-11-05
+(`b879aa18`). From 2026-10-25
 to 2026-11-04 it targeted `v0.2.0-preview`, versionCode 5: `commit:` was
 `4faad7c0e9cdd3fcf0994b95a56abd3e8c471f82`, `android-repro` run 40140411948, (a), (b) and `fdroid-build` all
 `a65f61242952bea358ce73c5e1d3c54ab002102566cbfa7cd4a06fd4f95df70d`. From 2026-10-22 to 2026-10-25 it targeted
@@ -392,9 +397,9 @@ Repo: https://github.com/anywecon/skepi.git
 Binaries: https://github.com/anywecon/skepi/releases/download/v%v/skepi-%v-arm64.apk
 
 Builds:
-  - versionName: 0.2.1-preview
-    versionCode: 6
-    commit: ebd321e03bdb65ee118e4ba592218e90e50514b2
+  - versionName: 0.2.2-preview
+    versionCode: 7
+    commit: 1602ae71d7d3a6635d6dac14970db8b06596aee2
     subdir: apps/mobile
     sudo:
       - echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.d/forky.list
@@ -434,8 +439,8 @@ AllowedAPKSigningKeys: 7d61c38241b178f84b12dd9a67af6b60b56159b1a0ff067fe672db45d
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9.]+(-preview)?$
 UpdateCheckData: apps/mobile/app.json|"versionCode":\s*(\d+)|.|"version":\s*"([^"]+)"
-CurrentVersion: 0.2.1-preview
-CurrentVersionCode: 6
+CurrentVersion: 0.2.2-preview
+CurrentVersionCode: 7
 ```
 
 ## 7. Play Data safety answers

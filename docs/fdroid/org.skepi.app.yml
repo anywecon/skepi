@@ -15,9 +15,9 @@ Repo: https://github.com/anywecon/skepi.git
 Binaries: https://github.com/anywecon/skepi/releases/download/v%v/skepi-%v-arm64.apk
 
 Builds:
-  - versionName: 0.2.1-preview
-    versionCode: 6
-    commit: ebd321e03bdb65ee118e4ba592218e90e50514b2
+  - versionName: 0.2.2-preview
+    versionCode: 7
+    commit: 1602ae71d7d3a6635d6dac14970db8b06596aee2
     subdir: apps/mobile
     sudo:
       - echo 'deb https://deb.debian.org/debian forky main' > /etc/apt/sources.list.d/forky.list
@@ -57,5 +57,5 @@ AllowedAPKSigningKeys: 7d61c38241b178f84b12dd9a67af6b60b56159b1a0ff067fe672db45d
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9.]+(-preview)?$
 UpdateCheckData: apps/mobile/app.json|"versionCode":\s*(\d+)|.|"version":\s*"([^"]+)"
-CurrentVersion: 0.2.1-preview
-CurrentVersionCode: 6
+CurrentVersion: 0.2.2-preview
+CurrentVersionCode: 7

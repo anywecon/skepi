@@ -1,6 +1,6 @@
-**Current:** v0.2.3-preview signed (tag on `1e5f54cca367`, signed APK `c6f00304…4c34`, cert `7d61c382…447e`) — step 6 done apart from the manual hand-off check; not published
-**Next step:** owner: hand-offs by hand on the S23 (SMS, share sheet, dialler; back out without sending), then step 7 (GitHub release with the signed APK, SHA256SUMS, cert, run 42752077871) and F-Droid MR 53588. Optional: delete the two orphaned catalog-3 files (map-gr-20261005.pmtiles, places-gr-20261004.sqlite) in org.skepi.app's maps folder. Still open: delete `SKEPI_RELEASE_*_PASSWORD` from `~/.gradle/gradle.properties` (owner).
-**Last session:** 2026-11-10 — v0.2.3 step 6: UPGRADE GATE PASS (v0.1.2 and v0.2.1), S23 `install -r` over v0.2.2 keeps all 5 packs Verified, Maestro 10/10 airplane mode (0 blocked, 0 downloads, 0 bytes, 0 intents), ICU ignored (`icu=none`)
+**Current:** v0.2.3-preview ready to publish — step 6 complete (incl. hand-offs by the owner); release folder `%TEMP%\skepielease-0.2.3-preview` prepared (signed APK, MSI, NSIS from the tag, SHA256SUMS.txt, release-notes.md); not published
+**Next step:** owner: step 7, GitHub pre-release `v0.2.3-preview` from that folder (body = release-notes.md), then F-Droid MR 53588. Still open: delete `SKEPI_RELEASE_*_PASSWORD` from `~/.gradle/gradle.properties` (owner).
+**Last session:** 2026-11-10 — v0.2.3 step 6 green (upgrade gate PASS, S23 install -r keeps 5 packs Verified, Maestro 10/10, ICU, hand-offs); catalog-3 leftovers deleted on the S23 (no ignored files); MSI/NSIS built from tag 1e5f54c in a clean worktree, desktop smoke 34/34
 
 
 ## 2026-11-10 (3): v0.2.3-preview step 6 on the signed APK (not published)
@@ -8,7 +8,11 @@
 - Upgrade gate (`e2e/run-upgrade-gate.ps1`, API 36 emulator): v0.1.2 PASS, v0.2.1 PASS → UPGRADE GATE: PASS.
 - S23 (device lock, airplane mode): `install -r` over the signed v0.2.2 (vc 7 → 8): Library before/after identical, 5 packs Verified (Qwen Q4_0, places-gr, map-gr, WikiMed, Wikipedia top EN). The "ignored" note for the orphaned catalog-3 files (left by v0.2.2) was there before the upgrade and stays until the files are deleted.
 - Maestro: onboarding, ask-en, ask-t1, medical, cards, blackout, places on the release app; tools and map-location on the debug build with `-MockLocation` (the release app gets no indoor fix and `-SimulateGnss` test-provider positions no longer reach it) — 10/10, 0 blocked, 0 downloads, 0 bytes, 0 intents, 0 foreign apps. ICU: `icu=none` with `icudt73l.dat` in the content folder (removed afterwards).
-- Open: hand-offs by hand (owner); publish (owner).
+- Hand-offs checked by hand by the owner (dialler, share sheet, SMS with location): pass.
+- S23: deleted the orphaned map-gr-20261005.pmtiles and places-gr-20261004.sqlite (device lock); Library shows no ignored files, 5 packs Verified.
+- Windows installers built from tag `v0.2.3-preview` (1e5f54c) in a clean worktree (`CARGO_TARGET_DIR` short path: the worktree path overflowed MAX_PATH in ggml-vulkan's CMake; one Ninja race in the vulkan shader build passed on retry); desktop smoke on that exe 34/34. MSI `b982c945…75b2`, NSIS `5ebc14a8…bb1a`.
+- Release folder `%TEMP%\skepielease-0.2.3-preview`: signed APK, MSI, NSIS, SHA256SUMS.txt (those three, all OK), release-notes.md (placeholders filled, internal preamble dropped as for v0.2.1). F-Droid signature copy re-checked on the signed APK: PASS.
+- Open: publish (owner).
 
 ## 2026-11-10 (2): v0.2.2-preview withdrawn, v0.2.3-preview prepared (no tag, no release)
 

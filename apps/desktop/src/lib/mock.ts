@@ -239,7 +239,7 @@ export function mockBackend(): Backend {
     content_state: () => state(),
     content_reconcile: (a) => {
       (a.onProgress as Stream<{ file: string; percent: number }>).onmessage({ file: 'eval-smoke-en.zim', percent: 100 });
-      return { registered: ['test-smoke-en'], unverified: [], rejectedModels: [], rejectedMaps: [], missing: [], changed: [], partialsRemoved: 0 };
+      return { registered: ['test-smoke-en'], unverified: [], rejectedModels: [], rejectedMaps: [], missing: [], changed: [], revoked: [], partialsRemoved: 0 };
     },
     content_download: (a) => {
       const id = String(a.packId);

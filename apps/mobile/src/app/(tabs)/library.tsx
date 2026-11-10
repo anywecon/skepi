@@ -1,5 +1,5 @@
 import type { InstalledPack } from '@skepi/contracts';
-import { packRegion, type CatalogPack } from '@skepi/core';
+import { packRegion, packTrust, type CatalogPack } from '@skepi/core';
 import { getDocumentAsync } from 'expo-document-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -196,8 +196,8 @@ export default function LibraryScreen() {
           <Text style={styles.muted}>
             {`${p.kind} · ${t.library.size(formatBytes(p.sizeBytes))}${p.license ? ` · ${t.library.licence(p.license)}` : ''}`}
           </Text>
-          <Text style={p.verified ? styles.muted : styles.error} testID={`status-${p.id}`}>
-            {p.verified ? t.library.verified : t.unverified.label}
+          <Text style={packTrust(catalog, p) === 'unverified' ? styles.error : styles.muted} testID={`status-${p.id}`}>
+            {{ verified: t.library.verified, 'verified-older': t.library.verifiedOlder, unverified: t.unverified.label }[packTrust(catalog, p)]}
           </Text>
           <View style={styles.row}>
             {!p.verified && p.consentAt === null && (

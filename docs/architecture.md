@@ -422,6 +422,23 @@ Every file the app opens (ZIM, GGUF, PMTiles, places DB) corresponds to an entry
 - Hosting: our own domain CNAME'd to GitHub Pages, with a raw GitHub fallback in the app (later phase; Phase 1c ships the embedded catalog and a catalog-update path tested against the local mirror; release builds have no update URL yet, see "How installed apps get catalogs"). Map and places packs are built by the catalog-builder (country packs: one CI job each, `.github/workflows/packs.yml`) and mirrored as GitHub release assets (`packs-2026-10`; country packs `packs-20261022`, not uploaded yet).
 - Pack generations (decision 2026-10-24): one GitHub release per generation, `packs-<Protomaps build>` (`packs-20261022`). A refresh uploads the new generation, then the new signed catalog is published (embedded in an app release; at the update URL once one exists), and only then old assets are deleted. Kept at any time (decision 2026-10-24, refined the same day): the newest generation in full; from older generations only the individual assets that the embedded catalogs of the last two app releases reference by URL (today the Greece map and places pack of `packs-2026-10`, embedded in v0.1.1-preview and v0.1.2-preview); every other asset of an old generation is deleted, and an old release is deleted once none of its assets is referenced. Worst-case total: ≈ 148 GB (newest, all countries) + the referenced older assets, at most two further full generations if both releases embed a different full one, ≈ 444 GB; today the newest generation + 512.5 MB. Sizes per release: `packs-2026-10` 2 assets, 512.5 MB (Greece map 507.2 MB, places 5.3 MB); pilot `packs-20261022` 39 assets (31 map packs + 8 places packs), 31.96 GB; a full generation ≈ 550 assets (≈ 310 map packs + 239 places packs), ≈ 148 GB. GitHub limits: each asset < 2 GiB (packs ≤ 1.5 GB by the split rule), ≤ 1000 assets per release; GitHub states no limit on a release's total size or bandwidth. Steps (dry run, then apply): `tools/catalog-builder/README.md` → "Retire old generations". An app release older than the last two keeps its embedded catalog (no update URL), so once its assets are deleted its downloads fail; P2P from a phone with the packs still works.
 - Schema 2 (global maps, 2026-10-23): map and places packs may carry `"region": { "iso2": "CY", "name": "Cyprus", "bbox": [32.2225, 34.5224, 34.642, 35.7405], "center": [33.0842, 34.9133] }` (and `"part": { "id": "bavaria", "name": "Bavaria, Thuringia", "regions": ["Thuringia", "Bavaria", "Thüringen", "Bayern"], "bbox": [8.9301, 47.2246, 13.8665, 51.6874] }` for a part of a split country); the builder writes schema 2 only when a pack has a region.
+- **Pack trust across catalogs** (decision 2026-11-10, after the v0.2.2-preview upgrade regression): a pack
+  is Verified when its SHA-256 is in the current signed catalog, or when a valid signed catalog verified it
+  before (its `packs` row is verified and holds that hash), its bytes are unchanged (file stamp, or a new
+  hash equal to the row's) **and** the current catalog does not revoke the hash. The second case is shown as
+  "Verified (older catalog): a newer version is available" (`packTrust` in `packages/core/src/catalog.ts`), so
+  the user can update it; "Integrity check" compares it with the hash that verified it. Without this rule
+  the v0.2.2 file-stamp migration dropped the Greece map and places of catalog 3 (v0.1.x) on upgrade,
+  because catalog 4 lists newer versions. **Revocation:** a catalog may carry `"revoked": ["<sha256>", …]`
+  (after `packs`; 64 lowercase hex, unique, never the hash of a pack it lists; `catalog build|prepare
+  --revoked <file>`). A revoked hash is never trusted: on every start (no hashing needed: the row's hash is
+  the verified one) and right after a catalog is adopted (update or P2P), revoked maps, places and models
+  are dropped from the registry (files stay on disk, never opened) and a revoked ZIM becomes unverified and
+  needs new consent; its integrity check fails. Apps before this field reject a catalog that has it as a
+  whole (strict schema) and keep theirs, as with schema 2; the anti-rollback `sequence` keeps a revocation
+  from being undone with an older catalog. Unit tests: `packages/core/test/catalog.test.ts`,
+  `apps/mobile/test/contentStore.test.ts`, `crates/desktop-core/tests/content_integrity.rs`; the upgrade
+  from published versions is a release gate (`docs/release-process.md`, step 6).
 - Embedded per build type: debug = test catalog + test keys (`catalog/embedded/debug`, `catalog/keys/test.json`); release = real-key catalog + release keys. A release build fails unless the embedded catalog verifies with the release keys (`skepiCheckReleaseCatalog`).
 - The newest accepted catalog is kept in internal storage and re-verified on every start; the highest accepted `sequence` lives in app.db.
 
@@ -739,7 +756,7 @@ CREATE TABLE energy_samples (
 CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 ```
 
-- `packs` is the source of truth for installed packs. Startup does a quick check (existence, size, `file_stamp`); full hash on any difference (packs without a stamp, from before migration 4, once) or via "Integrity check".
+- `packs` is the source of truth for installed packs. Startup does a quick check (existence, size, `file_stamp`, revoked hash); full hash on any difference (packs without a stamp, from before migration 4, once) or via "Integrity check". A row keeps `verified` and its `catalog_seq` across catalogs while its bytes are unchanged and not revoked ("Pack trust across catalogs").
 - `messages.citations_json` holds `{ sourceId, packId, path, section }[]` so old answers can reopen their sources; a deleted pack shows "unavailable".
 - `energy_samples` feeds blackout-mode cost estimates and never leaves the device.
 - Backup is an explicit export to an encrypted file (passphrase). No cloud sync.

@@ -1,4 +1,4 @@
-import { packRegion } from '@skepi/core';
+import { packRegion, packTrust } from '@skepi/core';
 import { useState } from 'react';
 import { Banner, Button, errorText, formatBytes } from '../components/ui';
 import { useMessages } from '../lib/i18n';
@@ -147,7 +147,13 @@ export function LibraryScreen() {
             {p.kind} · {p.version} · {formatBytes(p.sizeBytes)} · {p.source}
             {p.license ? ` · ${t.library.licence(p.license)}` : ''}
           </span>
-          {p.verified ? <span style={{ color: 'var(--ok)' }}>{t.library.verified}</span> : <span className="unverified">{t.unverified.label}</span>}
+          {packTrust(cat, p) === 'unverified' ? (
+            <span className="unverified">{t.unverified.label}</span>
+          ) : (
+            <span style={{ color: 'var(--ok)' }} data-testid={`trust-${p.id}`}>
+              {packTrust(cat, p) === 'verified' ? t.library.verified : t.library.verifiedOlder}
+            </span>
+          )}
           <div className="row">
             {!p.verified && p.consentAt === null && (
               <Button

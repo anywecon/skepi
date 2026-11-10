@@ -6,7 +6,7 @@ import type {
   PackKind,
   VerifyResult,
 } from '@skepi/contracts';
-import { findPackBySha256, fromBase64, isAllowedDownloadUrl, toBase64, type Catalog } from '@skepi/core';
+import { findPackBySha256, fromBase64, isAllowedDownloadUrl, isRevoked, toBase64, type Catalog } from '@skepi/core';
 import {
   findPackByPath,
   getPack,
@@ -120,6 +120,8 @@ export interface ReconcileReport {
   rejectedMaps: string[];
   missing: string[];
   changed: string[];
+  /** Packs whose hash the current signed catalog revokes: dropped (maps, places, models) or unverified (ZIM). */
+  revoked: string[];
   partialsRemoved: number;
   /** Android 7–10: packs still in external storage after this start, and why (nothing was deleted). */
   legacyKept: { file: string; reason: 'space' | 'mismatch' | 'failed' }[];
@@ -423,10 +425,13 @@ export class AndroidContentStore implements ContentStore {
   /** Full integrity check: hash the installed file and compare with the registered/catalog hash. */
   async verify(pack: InstalledPack, onProgress?: (hashed: number, total: number) => void): Promise<VerifyResult> {
     const digest = await hashFile(pack.path, onProgress ? { onProgress } : {});
+    const catalog = this.catalog();
     // A verified pack is checked against the digest a signed catalog verified (an older catalog's for a
-    // pack the current catalog lists in a newer version); anything else against the current catalog.
-    const expected = pack.verified ? pack.sha256 : (this.catalog()?.packs.find((p) => p.id === pack.id)?.sha256 ?? pack.sha256);
-    return { ok: digest.sha256 === expected, sha256: digest.sha256, expected };
+    // pack the current catalog lists in a newer version); anything else against the current catalog. A
+    // revoked hash never passes.
+    const expected = pack.verified ? pack.sha256 : (catalog?.packs.find((p) => p.id === pack.id)?.sha256 ?? pack.sha256);
+    const revoked = catalog !== null && isRevoked(catalog, digest.sha256);
+    return { ok: digest.sha256 === expected && !revoked, sha256: digest.sha256, expected, revoked };
   }
 
   async remove(packId: string): Promise<void> {
@@ -577,6 +582,7 @@ export class AndroidContentStore implements ContentStore {
       rejectedMaps: [],
       missing: [],
       changed: [],
+      revoked: [],
       partialsRemoved: 0,
       legacyKept: [],
     };
@@ -594,6 +600,18 @@ export class AndroidContentStore implements ContentStore {
         report.missing.push(p.id);
         continue;
       }
+      // A hash the current catalog revokes is never trusted, whichever catalog verified it (checked on
+      // every start, without hashing: the row's hash is the one that was verified).
+      if (catalog && isRevoked(catalog, p.sha256)) {
+        report.revoked.push(p.id);
+        if (p.kind !== 'zim') {
+          await removePack(db, p.id);
+          (p.kind === 'gguf' ? report.rejectedModels : report.rejectedMaps).push(file);
+          continue;
+        }
+        if (p.verified || p.consentAt !== null) await upsertPack(db, { ...p, verified: false, catalogSeq: null, consentAt: null });
+        continue;
+      }
       // Taken before hashing: a write during the hash changes it again, so the next start hashes again.
       if (info.sizeBytes === p.sizeBytes && info.stamp !== null && info.stamp === p.fileStamp && info.path === p.path) continue;
       const digest = await hashFile(info.path, { onProgress: (h, t) => onProgress?.(file, h, t) });
@@ -601,8 +619,9 @@ export class AndroidContentStore implements ContentStore {
       const sameBytes = digest.sha256 === p.sha256 && digest.sizeBytes === p.sizeBytes;
       if (!sameBytes) report.changed.push(p.id);
       // Unchanged bytes that an earlier signed catalog verified stay verified when the current catalog
-      // lists a newer version instead (packs from before file stamps are hashed once after the upgrade).
-      const stillVerified = !entry && sameBytes && p.verified;
+      // lists a newer version instead and does not revoke them (packs from before file stamps are hashed
+      // once after the upgrade). The library labels them "Verified (older catalog)".
+      const stillVerified = !entry && sameBytes && p.verified && !(catalog && isRevoked(catalog, digest.sha256));
       if (p.kind !== 'zim' && !entry && !stillVerified) {
         // Unverified models, maps and places are never opened (app.db forbids them, too).
         await removePack(db, p.id);

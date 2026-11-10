@@ -46,7 +46,7 @@ export interface CatalogPackJson {
 }
 
 export interface CatalogSummary {
-  catalog: { sequence: number; keyId: string; packs: CatalogPackJson[] } | null;
+  catalog: { sequence: number; keyId: string; packs: CatalogPackJson[]; revoked?: string[] } | null;
   bytesBase64: string | null;
   signature: string | null;
   origin: string | null;
@@ -162,6 +162,7 @@ export interface ReconcileReport {
   rejectedMaps: string[];
   missing: string[];
   changed: string[];
+  revoked: string[];
   partialsRemoved: number;
 }
 

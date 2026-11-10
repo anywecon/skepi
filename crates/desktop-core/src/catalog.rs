@@ -144,12 +144,22 @@ pub struct Catalog {
     pub issued_at: String,
     pub key_id: String,
     pub packs: Vec<CatalogPack>,
+    /// SHA-256 of pack files that are no longer trusted (optional; architecture "Pack trust across
+    /// catalogs"). Apps before this field reject such a catalog as a whole and keep theirs.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub revoked: Vec<String>,
 }
 
 impl Catalog {
     pub fn find_by_sha256(&self, digest: &str) -> Option<&CatalogPack> {
         let d = digest.to_ascii_lowercase();
         self.packs.iter().find(|p| p.sha256 == d)
+    }
+
+    /// True when the catalog withdraws trust from files with this SHA-256.
+    pub fn is_revoked(&self, digest: &str) -> bool {
+        let d = digest.to_ascii_lowercase();
+        self.revoked.contains(&d)
     }
 
     pub fn find(&self, id: &str) -> Option<&CatalogPack> {
@@ -465,7 +475,7 @@ fn parse_pack(v: &Value, path: &str, schema: u64) -> Result<CatalogPack, String>
 
 pub fn parse_catalog(data: &Value) -> Result<Catalog, String> {
     let o = obj(data, "catalog")?;
-    no_extra_keys(o, &["schema", "sequence", "issuedAt", "keyId", "packs"], "catalog")?;
+    no_extra_keys(o, &["schema", "sequence", "issuedAt", "keyId", "packs", "revoked"], "catalog")?;
     let schema = match o.get("schema").and_then(Value::as_f64) {
         Some(n) if n == CATALOG_SCHEMA as f64 => CATALOG_SCHEMA,
         Some(n) if n == CATALOG_SCHEMA_REGIONS as f64 => CATALOG_SCHEMA_REGIONS,
@@ -484,13 +494,37 @@ pub fn parse_catalog(data: &Value) -> Result<Catalog, String> {
             return Err(format!("catalog.packs: duplicate file {}", p.file));
         }
     }
+    let revoked = match o.get("revoked") {
+        None => Vec::new(),
+        Some(v) => parse_revoked(v, &packs)?,
+    };
     Ok(Catalog {
         schema,
         sequence: int(o.get("sequence"), "catalog.sequence", 1)?,
         issued_at: text(o.get("issuedAt"), "catalog.issuedAt", None)?.to_owned(),
         key_id: text(o.get("keyId"), "catalog.keyId", Some(&KEY_ID))?.to_owned(),
         packs,
+        revoked,
     })
+}
+
+fn parse_revoked(v: &Value, packs: &[CatalogPack]) -> Result<Vec<String>, String> {
+    let items = v.as_array().ok_or("catalog.revoked: expected an array")?;
+    let listed: std::collections::HashSet<&str> = packs.iter().map(|p| p.sha256.as_str()).collect();
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::with_capacity(items.len());
+    for (i, h) in items.iter().enumerate() {
+        let path = format!("catalog.revoked[{i}]");
+        let sha = text(Some(h), &path, Some(&HEX64))?.to_owned();
+        if !seen.insert(sha.clone()) {
+            return Err(format!("catalog.revoked: duplicate {sha}"));
+        }
+        if listed.contains(sha.as_str()) {
+            return Err(format!("{path}: a listed pack has this hash"));
+        }
+        out.push(sha);
+    }
+    Ok(out)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -689,6 +723,32 @@ mod tests {
         assert_eq!(verify_catalog(body.as_bytes(), &sig, std::slice::from_ref(&tk), &newer).unwrap_err().reason, Rejection::Rollback);
         let same = SequenceState { sequence: Some(3), sha256: Some("b".repeat(64)) };
         assert_eq!(verify_catalog(body.as_bytes(), &sig, std::slice::from_ref(&tk), &same).unwrap_err().reason, Rejection::SequenceReuse);
+    }
+
+    #[test]
+    fn revoked_hashes_are_parsed_and_checked() {
+        let (sk, tk) = key(1);
+        let with = |list: &str| catalog_json("k-1", 3).replacen(r#""packs":"#, &format!(r#""revoked":{list},"packs":"#), 1);
+        let body = with(&format!(r#"["{}","{}"]"#, "d".repeat(64), "e".repeat(64)));
+        let v = verify_catalog(body.as_bytes(), &signed(&sk, &body), std::slice::from_ref(&tk), &SequenceState::default()).expect("valid");
+        assert_eq!(v.value.revoked, vec!["d".repeat(64), "e".repeat(64)]);
+        assert!(v.value.is_revoked(&"D".repeat(64)));
+        assert!(!v.value.is_revoked(&"a".repeat(64)));
+        let plain = catalog_json("k-1", 3);
+        let p =
+            verify_catalog(plain.as_bytes(), &signed(&sk, &plain), std::slice::from_ref(&tk), &SequenceState::default()).expect("valid");
+        assert!(p.value.revoked.is_empty() && !p.value.is_revoked(&"d".repeat(64)));
+        for bad in [
+            format!(r#""{}""#, "d".repeat(64)),
+            r#"["ABC"]"#.to_owned(),
+            format!(r#"["{}"]"#, "D".repeat(64)),
+            format!(r#"["{0}","{0}"]"#, "d".repeat(64)),
+            format!(r#"["{}"]"#, "a".repeat(64)),
+        ] {
+            let body = with(&bad);
+            let r = verify_catalog(body.as_bytes(), &signed(&sk, &body), std::slice::from_ref(&tk), &SequenceState::default()).unwrap_err();
+            assert_eq!(r.reason, Rejection::Schema, "{bad}: {}", r.detail);
+        }
     }
 
     #[test]

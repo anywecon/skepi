@@ -94,6 +94,8 @@ pub struct ReconcileReport {
     pub rejected_maps: Vec<String>,
     pub missing: Vec<String>,
     pub changed: Vec<String>,
+    /// Packs whose hash the current signed catalog revokes: dropped (maps, places, models) or unverified (ZIM).
+    pub revoked: Vec<String>,
     pub partials_removed: u32,
 }
 
@@ -103,6 +105,8 @@ pub struct VerifyResult {
     pub ok: bool,
     pub sha256: String,
     pub expected: Option<String>,
+    /// The current signed catalog revokes this hash (never passes).
+    pub revoked: bool,
 }
 
 pub struct ContentStore {
@@ -481,12 +485,14 @@ impl ContentStore {
         let d = digest_file(Path::new(&p.path), catalog::CATALOG_CHUNK_SIZE, cancel, progress)?;
         // A verified pack is checked against the digest a signed catalog verified (an older catalog's for a
         // pack the current catalog lists in a newer version); anything else against the current catalog.
+        let catalog = self.catalog();
         let expected = if p.verified {
             Some(p.sha256.clone())
         } else {
-            self.catalog().and_then(|c| c.find(&p.id).map(|e| e.sha256.clone())).or(Some(p.sha256.clone()))
+            catalog.as_ref().and_then(|c| c.find(&p.id).map(|e| e.sha256.clone())).or(Some(p.sha256.clone()))
         };
-        Ok(VerifyResult { ok: expected.as_deref() == Some(d.sha256.as_str()), sha256: d.sha256, expected })
+        let revoked = catalog.as_ref().is_some_and(|c| c.is_revoked(&d.sha256));
+        Ok(VerifyResult { ok: expected.as_deref() == Some(d.sha256.as_str()) && !revoked, sha256: d.sha256, expected, revoked })
     }
 
     pub fn remove(&self, id: &str) -> Result<(), ContentError> {
@@ -521,12 +527,24 @@ impl ContentStore {
                 report.missing.push(p.id);
                 continue;
             }
+            let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            // A hash the current catalog revokes is never trusted, whichever catalog verified it (checked on
+            // every start, without hashing: the row's hash is the one that was verified).
+            if catalog.as_ref().is_some_and(|c| c.is_revoked(&p.sha256)) {
+                report.revoked.push(p.id.clone());
+                if p.kind != PackKind::Zim {
+                    self.db.remove_pack(&p.id)?;
+                    if p.kind == PackKind::Gguf { report.rejected_models.push(name) } else { report.rejected_maps.push(name) }
+                } else if p.verified || p.consent_at.is_some() {
+                    self.db.upsert_pack(&PackRow { verified: false, catalog_seq: None, consent_at: None, ..p })?;
+                }
+                continue;
+            }
             // Taken before hashing: a write during the hash changes it again, so the next start hashes again.
             let stamp = file_stamp(&path).ok();
             if meta.len() == p.size_bytes && stamp.is_some() && stamp == p.file_stamp {
                 continue;
             }
-            let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
             let d = digest_file(&path, catalog::CATALOG_CHUNK_SIZE, None, |h, t| progress(&name, h, t))?;
             let entry = catalog.as_ref().and_then(|c| c.find_by_sha256(&d.sha256).cloned());
             let same_bytes = d.sha256 == p.sha256 && d.size_bytes == p.size_bytes;
@@ -535,7 +553,7 @@ impl ContentStore {
             }
             // Unchanged bytes that an earlier signed catalog verified stay verified when the current catalog
             // lists a newer version instead (packs from before file stamps are hashed once after the upgrade).
-            let still_verified = entry.is_none() && same_bytes && p.verified;
+            let still_verified = entry.is_none() && same_bytes && p.verified && !catalog.as_ref().is_some_and(|c| c.is_revoked(&d.sha256));
             if p.kind != PackKind::Zim && entry.is_none() && !still_verified {
                 self.db.remove_pack(&p.id)?;
                 if p.kind == PackKind::Gguf {

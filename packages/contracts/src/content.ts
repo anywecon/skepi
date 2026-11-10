@@ -49,6 +49,8 @@ export interface VerifyResult {
   ok: boolean;
   sha256: string;
   expected: string | null;
+  /** The current signed catalog revokes this hash (never passes). */
+  revoked?: boolean;
 }
 
 /**

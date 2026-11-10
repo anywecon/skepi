@@ -4,6 +4,8 @@ import {
   findPackBySha256,
   fromBase64,
   generateKeyPair,
+  isRevoked,
+  packTrust,
   isAllowedDownloadUrl,
   NO_SEQUENCE,
   parseCatalog,
@@ -137,6 +139,43 @@ describe('verifyCatalog', () => {
     expect(bad({ file: '../../etc/passwd.zim' })).toBe('schema');
     expect(bad({ file: 'model.gguf' })).toBe('schema');
     expect(bad({ extra: 1 })).toBe('schema');
+  });
+});
+
+describe('revoked pack hashes', () => {
+  const verify = (c: unknown): string => {
+    const { bytes, sig } = signed(c, keyA.secretKey);
+    const r = verifyCatalog(bytes, sig, trusted, NO_SEQUENCE);
+    return r.ok ? 'ok' : r.reason;
+  };
+
+  it('accepts a list of revoked hashes and finds them in any case', () => {
+    const { bytes, sig } = signed(catalog({ revoked: [H('d'), H('e')] }), keyA.secretKey);
+    const r = verifyCatalog(bytes, sig, trusted, NO_SEQUENCE);
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.value.revoked).toEqual([H('d'), H('e')]);
+    expect(isRevoked(r.value, H('D'))).toBe(true);
+    expect(isRevoked(r.value, H('a'))).toBe(false);
+    // Catalogs without the field (every published one so far) revoke nothing.
+    expect(parseCatalog(catalog()).revoked).toBeUndefined();
+    expect(isRevoked(parseCatalog(catalog()), H('d'))).toBe(false);
+  });
+
+  it('labels installed packs: verified, verified by an older catalog, unverified or revoked', () => {
+    const c = parseCatalog(catalog({ revoked: [H('d')] }));
+    expect(packTrust(c, { verified: true, sha256: H('a') })).toBe('verified');
+    expect(packTrust(c, { verified: true, sha256: H('e') })).toBe('verified-older');
+    expect(packTrust(c, { verified: true, sha256: H('d') })).toBe('unverified');
+    expect(packTrust(c, { verified: false, sha256: H('a') })).toBe('unverified');
+    expect(packTrust(null, { verified: true, sha256: H('e') })).toBe('verified');
+  });
+
+  it('rejects malformed lists, duplicates and the hash of a listed pack', () => {
+    expect(verify({ ...catalog(), revoked: H('d') })).toBe('schema');
+    expect(verify({ ...catalog(), revoked: ['ABC'] })).toBe('schema');
+    expect(verify({ ...catalog(), revoked: [H('D')] })).toBe('schema');
+    expect(verify({ ...catalog(), revoked: [H('d'), H('d')] })).toBe('schema');
+    expect(verify({ ...catalog(), revoked: [H('a')] })).toBe('schema');
   });
 });
 

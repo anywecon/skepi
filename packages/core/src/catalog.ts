@@ -86,6 +86,12 @@ export interface Catalog {
   issuedAt: string;
   keyId: string;
   packs: CatalogPack[];
+  /**
+   * SHA-256 of pack files that are no longer trusted (optional; architecture "Pack trust across catalogs").
+   * A pack an older signed catalog verified loses its verified state when its hash is listed here. Apps
+   * before this field reject such a catalog as a whole (strict schema) and keep theirs.
+   */
+  revoked?: string[];
 }
 
 export interface TrustedKey {
@@ -302,7 +308,7 @@ function parsePack(v: unknown, path: string, schema: CatalogSchema): CatalogPack
 /** Validates a parsed catalog; throws with the path of the first invalid field. */
 export function parseCatalog(data: unknown): Catalog {
   if (!isRecord(data)) throw new SchemaError('catalog: expected an object');
-  noExtraKeys(data, ['schema', 'sequence', 'issuedAt', 'keyId', 'packs'], 'catalog');
+  noExtraKeys(data, ['schema', 'sequence', 'issuedAt', 'keyId', 'packs', 'revoked'], 'catalog');
   const schema = CATALOG_SCHEMAS.find((n) => n === data.schema);
   if (schema === undefined) throw new SchemaError(`catalog.schema: expected ${CATALOG_SCHEMAS.join(' or ')}`);
   if (!Array.isArray(data.packs)) throw new SchemaError('catalog.packs: expected an array');
@@ -315,13 +321,48 @@ export function parseCatalog(data: unknown): Catalog {
     ids.add(p.id);
     files.add(`${p.kind}/${p.file}`);
   }
+  const revoked = data.revoked === undefined ? undefined : parseRevoked(data.revoked, packs);
   return {
     schema,
     sequence: int(data.sequence, 'catalog.sequence', 1),
     issuedAt: str(data.issuedAt, 'catalog.issuedAt'),
     keyId: str(data.keyId, 'catalog.keyId', KEY_ID),
     packs,
+    ...(revoked ? { revoked } : {}),
   };
+}
+
+function parseRevoked(v: unknown, packs: readonly CatalogPack[]): string[] {
+  if (!Array.isArray(v)) throw new SchemaError('catalog.revoked: expected an array');
+  const listed = new Set(packs.map((p) => p.sha256));
+  const seen = new Set<string>();
+  return v.map((h, i) => {
+    const path = `catalog.revoked[${String(i)}]`;
+    const sha = str(h, path, HEX64);
+    if (seen.has(sha)) throw new SchemaError(`catalog.revoked: duplicate ${sha}`);
+    if (listed.has(sha)) throw new SchemaError(`${path}: a listed pack has this hash`);
+    seen.add(sha);
+    return sha;
+  });
+}
+
+/**
+ * How an installed pack is trusted under the current catalog: `verified-older` is a pack an older signed
+ * catalog verified that the current one lists in another version (still trusted; the user can update it).
+ */
+export function packTrust(
+  catalog: { packs: readonly { sha256: string }[]; revoked?: readonly string[] } | null,
+  pack: { verified: boolean; sha256: string },
+): 'verified' | 'verified-older' | 'unverified' {
+  const sha = pack.sha256.toLowerCase();
+  if (!pack.verified || catalog?.revoked?.includes(sha)) return 'unverified';
+  if (catalog && !catalog.packs.some((p) => p.sha256 === sha)) return 'verified-older';
+  return 'verified';
+}
+
+/** True when the catalog withdraws trust from files with this SHA-256. */
+export function isRevoked(catalog: Catalog, digest: string): boolean {
+  return catalog.revoked?.includes(digest.toLowerCase()) ?? false;
 }
 
 function decodeKey(b64: string): Uint8Array | null {

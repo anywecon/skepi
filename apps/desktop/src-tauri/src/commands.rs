@@ -367,7 +367,18 @@ pub async fn content_cancel(state: State<'_, AppState>, pack_id: String) -> Res<
 
 #[tauri::command]
 pub async fn content_check_update(state: State<'_, AppState>) -> Res<Option<u64>> {
-    desktop_core::download::check_catalog_update(&state.store, &state.http).await.map_err(err)
+    let sequence = desktop_core::download::check_catalog_update(&state.store, &state.http).await.map_err(err)?;
+    if sequence.is_some() {
+        // Hashes the new catalog revokes lose their trust now, not at the next start; open archives and
+        // places files are closed so that only packs still trusted open again.
+        let store = state.store.clone();
+        let report = blocking(move || store.reconcile(|_, _, _| {}).map_err(err)).await?;
+        if !report.revoked.is_empty() {
+            state.zim.close_all();
+            state.places.close_all();
+        }
+    }
+    Ok(sequence)
 }
 
 /// Opens the native file picker; the chosen file is copied into the content folder and checked.

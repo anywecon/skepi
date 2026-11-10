@@ -101,6 +101,18 @@ describe('buildCatalog', () => {
     expect(verifyCatalog(signed.bytes, signed.signature, trusted, { sequence: 2, sha256: null })).toMatchObject({ ok: true, sequence: 3 });
   });
 
+  it('a revocation list is signed in canonical order and accepted by the app', async () => {
+    const revoked = ['F'.repeat(64), 'e'.repeat(64)];
+    const prepared = await prepareCatalog({ manifest, cacheDir: dir, keyId: active.keyId, previousSequence: 2, revoked });
+    const signed = signPreparedCatalog(prepared.bytes, active, { previousSequence: 2, expectSha256: sha256Hex(prepared.bytes) });
+    const r = verifyCatalog(signed.bytes, signed.signature, trusted, { sequence: 2, sha256: null });
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.value.revoked).toEqual(['e'.repeat(64), 'f'.repeat(64)]);
+    // Without the option nothing is written: the bytes are those of a catalog before revocation lists.
+    const plain = await prepareCatalog({ manifest, cacheDir: dir, keyId: active.keyId, previousSequence: 2 });
+    expect(new TextDecoder().decode(plain.bytes)).not.toContain('revoked');
+  });
+
   it('sign refuses other bytes, another key, a non-increasing sequence and non-canonical JSON', async () => {
     const prepared = await prepareCatalog({ manifest, cacheDir: dir, keyId: active.keyId, previousSequence: 2 });
     const hash = sha256Hex(prepared.bytes);

@@ -16,7 +16,8 @@ import { defaultCacheDir, legacySkepiDir, migrateDir, resolveCacheDir, skepiHome
  *
  *   keygen  --key-id <id> --out <file outside the repo>
  *   pin     --active <id.pub.json> --backup <id.pub.json> --purpose release|test --out catalog/keys/<purpose>.json
- *   build   --manifest catalog/manifest.json [--manifest more.json] --key <secret file> --out <dir> [--cache <dir>] [--sequence N] [--previous <catalog.json>]
+ *   build   --manifest catalog/manifest.json [--manifest more.json] --key <secret file> --out <dir> [--cache <dir>] [--sequence N] [--previous <catalog.json>] [--revoked <file>]
+ *           --revoked (also for prepare): a text file, one SHA-256 per line (# comments), of pack files the catalog revokes
  *   keylist --pinned <new keys json> --key <secret of the replaced key> --sequence N --out <dir>
  *   verify  --dir <dir> --pinned catalog/keys/<purpose>.json [--release]
  *   migrate-cache [--cache <dir>]   moves %TEMP%\skepi\{cache,keys} to %LOCALAPPDATA%\skepi (SHA-256 checked)
@@ -25,6 +26,14 @@ import { defaultCacheDir, legacySkepiDir, migrateDir, resolveCacheDir, skepiHome
  *   prepare … --reports <dir>   also requires every pack to match its CI report (size, SHA-256, chunks)
  */
 const USAGE = 'usage: catalog <keygen|pin|build|prepare|sign|keylist|verify|migrate-cache|check-fixtures|countries|pack> [options] (see src/cli.ts)';
+
+/** One SHA-256 per line; blank lines and # comments are ignored (parseCatalog checks the hashes). */
+function readRevoked(path: string): string[] {
+  return readFileSync(path, 'utf8')
+    .split(/\r?\n/)
+    .map((l) => l.replace(/#.*$/, '').trim())
+    .filter((l) => l.length > 0);
+}
 
 const [command, ...rest] = process.argv.slice(2).filter((a, i) => !(i === 0 && a === '--'));
 const { values: args } = parseArgs({
@@ -36,6 +45,7 @@ const { values: args } = parseArgs({
     backup: { type: 'string' },
     purpose: { type: 'string' },
     manifest: { type: 'string', multiple: true },
+    revoked: { type: 'string' },
     key: { type: 'string' },
     cache: { type: 'string' },
     sequence: { type: 'string' },
@@ -110,6 +120,7 @@ async function main(): Promise<number> {
         key,
         previousSequence: sequenceOf(previousPath),
         ...(args.sequence ? { sequence: Number(args.sequence) } : {}),
+        ...(args.revoked ? { revoked: readRevoked(resolve(args.revoked)) } : {}),
         ...(args['issued-at'] ? { issuedAt: args['issued-at'] } : {}),
         log: (line) => {
           console.log(line);
@@ -148,6 +159,7 @@ async function main(): Promise<number> {
         keyId: need('key-id', args['key-id']),
         previousSequence: sequenceOf(previous),
         ...(args.sequence ? { sequence: Number(args.sequence) } : {}),
+        ...(args.revoked ? { revoked: readRevoked(resolve(args.revoked)) } : {}),
         ...(args['issued-at'] ? { issuedAt: args['issued-at'] } : {}),
         log: (line) => {
           console.log(line);

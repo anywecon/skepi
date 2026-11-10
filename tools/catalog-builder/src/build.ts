@@ -53,6 +53,8 @@ export interface BuildOptions extends MeasureOptions {
   /** Explicit sequence; default previous + 1. */
   sequence?: number;
   issuedAt?: string;
+  /** SHA-256 of pack files the catalog revokes (architecture "Pack trust across catalogs"). */
+  revoked?: readonly string[];
 }
 
 /** `prepare`: the same as a build, but the key is only named; nothing is signed. */
@@ -162,7 +164,8 @@ export function catalogSchema(packs: readonly CatalogPack[]): Catalog['schema'] 
 
 /** The canonical bytes of a catalog (stable key order, 2-space JSON, trailing newline): what is signed. */
 export function serializeCatalog(catalog: Catalog): Uint8Array {
-  const ordered: Catalog = { schema: catalogSchema(catalog.packs), sequence: catalog.sequence, issuedAt: catalog.issuedAt, keyId: catalog.keyId, packs: catalog.packs };
+  const revoked = catalog.revoked && catalog.revoked.length > 0 ? { revoked: [...catalog.revoked].sort() } : {};
+  const ordered: Catalog = { schema: catalogSchema(catalog.packs), sequence: catalog.sequence, issuedAt: catalog.issuedAt, keyId: catalog.keyId, packs: catalog.packs, ...revoked };
   parseCatalog(ordered);
   return utf8(`${JSON.stringify(ordered, null, 2)}\n`);
 }
@@ -190,6 +193,7 @@ export async function prepareCatalog(opts: PrepareOptions): Promise<{ bytes: Uin
     issuedAt: opts.issuedAt ?? new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
     keyId: opts.keyId,
     packs,
+    ...(opts.revoked && opts.revoked.length > 0 ? { revoked: opts.revoked.map((h) => h.toLowerCase()) } : {}),
   };
   return { bytes: serializeCatalog(catalog), catalog };
 }

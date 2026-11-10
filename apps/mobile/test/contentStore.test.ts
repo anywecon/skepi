@@ -136,6 +136,30 @@ describe('an upgrade keeps packs an earlier signed catalog verified', () => {
     }
   });
 
+  it('a hash the current catalog revokes loses its trust at once, without hashing', async () => {
+    await fromBeforeStamps();
+    await store.reconcile();
+    const zim = await getPack(db, SMOKE_ID);
+    if (!zim) throw new Error('not installed');
+    store = new AndroidContentStore(() => Promise.resolve(db), () => ({ ...NEWER, sequence: NEWER.sequence + 1, revoked: [MAP_SHA, zim.sha256] }));
+    fakeFs.hashed.length = 0;
+    const report = await store.reconcile();
+    // The revoked rows are dropped without hashing; the map file left on disk is then an unknown file,
+    // hashed and listed as never opened like any other.
+    expect(fakeFs.hashed.map((f) => f.split('/').pop())).toEqual(['map-xx-20261005.pmtiles']);
+    expect(report.revoked.sort()).toEqual(['map-xx', SMOKE_ID].sort());
+    expect([...new Set(report.rejectedMaps)]).toEqual(['map-xx-20261005.pmtiles']);
+    expect(await getPack(db, 'map-xx')).toBeNull();
+    const after = await getPack(db, SMOKE_ID);
+    expect(after?.verified).toBe(false);
+    expect(after?.consentAt).toBeNull();
+    if (after) {
+      const check = await store.verify(after);
+      expect(check.ok).toBe(false);
+      expect(check.revoked).toBe(true);
+    }
+  });
+
   it('changed bytes of such a pack are not trusted: the map is dropped, the ZIM is unverified', async () => {
     await fromBeforeStamps();
     fakeFs.overwriteInPlace('maps/map-xx-20261005.pmtiles', flipped(MAP), false);

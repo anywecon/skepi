@@ -171,6 +171,56 @@ fn packs_verified_by_an_earlier_catalog_stay_verified_after_the_upgrade() {
     }
 }
 
+/// The debug test catalog re-signed with test keys and a `revoked` list (a newer sequence).
+fn store_with_revoked(dir: &Path, revoked: &[&str]) -> ContentStore {
+    let base: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(repo("catalog/embedded/debug/catalog.json")).expect("catalog")).expect("json");
+    let mut c = base.clone();
+    c["sequence"] = serde_json::Value::from(base["sequence"].as_u64().expect("sequence") + 1);
+    c["revoked"] = serde_json::Value::from(revoked.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+    // A key made for this test only, pinned as the active test key.
+    let sk = ed25519_dalek::SigningKey::from_bytes(&[42u8; 32]);
+    let b64 = |b: &[u8]| desktop_core::catalog::to_base64(b);
+    let backup = ed25519_dalek::SigningKey::from_bytes(&[43u8; 32]);
+    let pinned = serde_json::json!({
+        "schema": 1,
+        "purpose": "test",
+        "active": { "keyId": "cat-test-revoke", "publicKey": b64(sk.verifying_key().as_bytes()) },
+        "backup": { "keyId": "cat-test-revoke-b", "publicKey": b64(backup.verifying_key().as_bytes()) },
+    });
+    c["keyId"] = serde_json::Value::from("cat-test-revoke");
+    let bytes = serde_json::to_vec(&c).expect("bytes");
+    let signature = b64(&ed25519_dalek::Signer::sign(&sk, &bytes).to_bytes());
+    let db = Arc::new(AppDb::open(&dir.join("app.db"), &[5u8; 32], 1).expect("db"));
+    let embedded = EmbeddedCatalog { catalog: bytes, signature, pinned_keys: pinned.to_string(), update_urls: vec![] };
+    ContentStore::new(db, dir.join("appdata"), dir.join("content"), embedded).expect("store")
+}
+
+#[test]
+fn a_revoked_hash_loses_its_trust_at_once() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let (map, zim) = {
+        let s = store(dir.path());
+        let map = pack_from_an_older_catalog(&s, PackKind::Pmtiles, "maps/map-xx-20261005.pmtiles", &[7u8; 4096]);
+        let zim = pack_from_an_older_catalog(&s, PackKind::Zim, "zim/old_2026-07.zim", &[9u8; 4096]);
+        s.reconcile(|_, _, _| {}).expect("first start stamps them");
+        (map, zim)
+    };
+    let s = store_with_revoked(dir.path(), &[&map.sha256, &zim.sha256]);
+    let report = s.reconcile(|_, _, _| {}).expect("reconcile");
+    let mut revoked = report.revoked.clone();
+    revoked.sort();
+    let mut want = vec![map.id.clone(), zim.id.clone()];
+    want.sort();
+    assert_eq!(revoked, want);
+    assert!(report.rejected_maps.contains(&"map-xx-20261005.pmtiles".to_string()));
+    assert!(s.db.get_pack(&map.id).expect("get").is_none());
+    let after = s.db.get_pack(&zim.id).expect("get").expect("a ZIM stays listed");
+    assert!(!after.verified && after.consent_at.is_none());
+    let check = s.verify(&zim.id, None, |_, _| {}).expect("verify");
+    assert!(!check.ok && check.revoked);
+}
+
 #[test]
 fn changed_bytes_of_a_pack_from_an_earlier_catalog_are_not_trusted() {
     let dir = tempfile::tempdir().expect("tmp");

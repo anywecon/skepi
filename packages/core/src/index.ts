@@ -227,6 +227,8 @@ export {
   findPackBySha256,
   fromBase64,
   generateKeyPair,
+  isRevoked,
+  packTrust,
   isAllowedDownloadUrl,
   KEY_LIST_SCHEMA,
   NO_SEQUENCE,

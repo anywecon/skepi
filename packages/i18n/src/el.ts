@@ -171,6 +171,7 @@ export const el: Messages = {
     size: (size) => `Μέγεθος ${size}`,
     licence: (licence) => `Άδεια ${licence}`,
     verified: 'Επαληθευμένο',
+    verifiedOlder: 'Επαληθευμένο (παλαιότερος κατάλογος): υπάρχει νεότερη έκδοση',
     download: 'Λήψη',
     cancel: 'Ακύρωση',
     remove: 'Διαγραφή',

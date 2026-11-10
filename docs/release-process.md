@@ -85,7 +85,16 @@ came as prebuilt AARs from `node_modules`). Every CMake build loads `apps/mobile
    - the full Maestro suite, including `onboarding.yaml` (release-only);
    - ICU data in the content folder is ignored: with an `icu/icudt*.dat` file in the content folder,
      `adb logcat -s ExpoZim` shows `icu=none` after a cold start (remove the file afterwards);
-   - the app opens the packs installed by the previous version and keeps them verified;
+   - the app opens the packs installed by the previous version and keeps them verified (Library, before and
+     after the `install -r`: same packs, each "Verified" or "Verified (older catalog)", no ignored files);
+   - **upgrade gate** (decision 2026-11-10, after v0.2.2-preview dropped the catalog-3 map and places on
+     upgrade): `e2e/run-upgrade-gate.ps1 -Candidate <signed.apk>` must end with `UPGRADE GATE: PASS`. On a
+     dedicated API 36 emulator (`skepi-upgrade-api36`, created on first use, wiped per scenario, device
+     lock), it installs each published APK (SHA-256 checked: v0.1.2-preview with the catalog-3 packs
+     map-gr-20261005 and places-gr-20261004, v0.2.1-preview with the catalog-4 packs map-gr-20261024 and
+     places-gr-20261023, both with the English medicine ZIM), records every pack's state, upgrades to the
+     candidate with `install -r` and requires every pack in the same state. Add a scenario for each newly
+     published version. The desktop counterpart runs in CI (`crates/desktop-core/tests/upgrade.rs`);
    - the hand-offs, by hand (no Maestro flow taps them: `run-e2e.ps1` refuses such a flow and fails a run
      in which the app opened another app): Tools → "Send my location by SMS" opens the SMS app with the position text,
      Ask → Report → "Send…" opens the share sheet with the report, an emergency card's call button opens

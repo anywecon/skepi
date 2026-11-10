@@ -1,7 +1,14 @@
-**Current:** v0.2.3-preview ready to publish — step 6 complete (incl. hand-offs by the owner); release folder `%TEMP%\skepielease-0.2.3-preview` prepared (signed APK, MSI, NSIS from the tag, SHA256SUMS.txt, release-notes.md); not published
-**Next step:** owner: step 7, GitHub pre-release `v0.2.3-preview` from that folder (body = release-notes.md), then F-Droid MR 53588. Still open: delete `SKEPI_RELEASE_*_PASSWORD` from `~/.gradle/gradle.properties` (owner).
+**Current:** v0.2.3-preview published 2026-11-10 (https://github.com/anywecon/skepi/releases/tag/v0.2.3-preview); fdroiddata MR 53588 updated to 0.2.3-preview
+**Next step:** owner: follow F-Droid MR 53588 to merge. Still open: delete `SKEPI_RELEASE_*_PASSWORD` from `~/.gradle/gradle.properties` (owner).
+**Last session:** 2026-11-10 — v0.2.3-preview published by the owner; emergency-card review text brought up to date (verbatim-source model, no instructor review); release temp folders and the tag worktree removed; pnpm verify green
 **Last session:** 2026-11-10 — v0.2.3 step 6 green (upgrade gate PASS, S23 install -r keeps 5 packs Verified, Maestro 10/10, ICU, hand-offs); catalog-3 leftovers deleted on the S23 (no ignored files); MSI/NSIS built from tag 1e5f54c in a clean worktree, desktop smoke 34/34
 
+
+## v0.2.3-preview published 2026-11-10
+- GitHub pre-release https://github.com/anywecon/skepi/releases/tag/v0.2.3-preview (tag on `1e5f54cca367`): signed APK `c6f00304…4c34`, MSI `b982c945…75b2`, NSIS `5ebc14a8…bb1a`, SHA256SUMS.txt; the downloaded APK passes the F-Droid signature copy (owner).
+- fdroiddata MR 53588 updated to 0.2.3-preview (branch commit 1e5d12f3, note 4203378090).
+- Docs: the emergency cards are verbatim excerpts of IFRC 2025 / CDC / FEMA Ready.gov and the maintainer only checks each excerpt against its source (source check + weekly drift job); the open item "review by certified first-aid instructors" is gone from the threat model, CODEOWNERS and README say so. Dated reports unchanged.
+- Cleaned up: tag worktree, its target dir, `%TEMP%\skepi\release*` and `verify-0.2.3`.
 
 ## 2026-11-10 (3): v0.2.3-preview step 6 on the signed APK (not published)
 - Signed APK `skepi-0.2.3-preview-arm64.apk` SHA-256 `c6f003049c6f76ac3360c1f6bf2d4ca77ea923ca14c7f53efc22b0dac7a34c34`, v2 signer `7d61c382…447e` (= AllowedAPKSigningKeys), vc 8; unsigned `4a86b9af…5698` from run 42752077871.
@@ -11,7 +18,7 @@
 - Hand-offs checked by hand by the owner (dialler, share sheet, SMS with location): pass.
 - S23: deleted the orphaned map-gr-20261005.pmtiles and places-gr-20261004.sqlite (device lock); Library shows no ignored files, 5 packs Verified.
 - Windows installers built from tag `v0.2.3-preview` (1e5f54c) in a clean worktree (`CARGO_TARGET_DIR` short path: the worktree path overflowed MAX_PATH in ggml-vulkan's CMake; one Ninja race in the vulkan shader build passed on retry); desktop smoke on that exe 34/34. MSI `b982c945…75b2`, NSIS `5ebc14a8…bb1a`.
-- Release folder `%TEMP%\skepielease-0.2.3-preview`: signed APK, MSI, NSIS, SHA256SUMS.txt (those three, all OK), release-notes.md (placeholders filled, internal preamble dropped as for v0.2.1). F-Droid signature copy re-checked on the signed APK: PASS.
+- Release folder `%TEMP%\skepi\release-0.2.3-preview`: signed APK, MSI, NSIS, SHA256SUMS.txt (those three, all OK), release-notes.md (placeholders filled, internal preamble dropped as for v0.2.1). F-Droid signature copy re-checked on the signed APK: PASS.
 - Open: publish (owner).
 
 ## 2026-11-10 (2): v0.2.2-preview withdrawn, v0.2.3-preview prepared (no tag, no release)

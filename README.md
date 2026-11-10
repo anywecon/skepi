@@ -66,8 +66,9 @@ asks for firewall access: allow **private networks** only.
 
 ## Known limitations
 
-- **Developer preview, not for emergency use.** Emergency card steps are not included until reviewed by
-  certified first-aid professionals.
+- **Developer preview, not for emergency use.** Emergency card steps are verbatim excerpts of the IFRC
+  guidelines 2025, CDC and FEMA Ready.gov, each with its citation; SKEPI checks only that every excerpt
+  matches its source.
 - **Tested on a Samsung Galaxy S23 and Windows 11 only.** Other devices may be slow or fail. Phones
   with less than about 3 GB of RAM get source excerpts only; up to about 6 GB the AI summary runs on
   request with a smaller budget.

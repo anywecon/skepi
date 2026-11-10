@@ -58,6 +58,14 @@ a parser or a network path. Architecture context: `docs/architecture.md` ("Secur
 | Unsourced card text (the former US public-domain steps and their Greek translation) in a bundle | Unsourced topics are not imported by the package entry; every release bundle is scanned for the 202 former texts (UTF-8, UTF-16LE, `\uXXXX`) and must contain every sourced step, sourced steps only with a matching lock. | `tools/release-guards` `cards-bundle` (Gradle `skepiCheckCardsBundle`, iOS build phase, desktop in CI) and its unit tests |
 | Wrong emergency number | Bundled per-country dataset with a documented official source per country; unknown country → 112 labelled "check the local number"; the country is chosen by the user, never from the network. Calls only open the dialler. | `numbers.test.ts` |
 
+Review model (since v0.1.2-preview): the cards contain no text written for SKEPI. Every step is a verbatim
+excerpt of a cited source edition: the IFRC International First Aid, Resuscitation and Education
+Guidelines 2025 (section and page), or CDC and FEMA Ready.gov public-domain pages (URL, retrieval date,
+committed snapshot). There is no instructor review; the maintainer checks only that each excerpt matches
+its source: `tools/cards-source-check` in CI (exact substring of the cited source), the release guards
+above, and the weekly drift job (`.github/workflows/cards-sources-drift.yml`), which re-fetches the web
+sources and opens an issue when a source text changed. A card changes only by a reviewed commit.
+
 ## Device sensors, permissions and intents
 
 | Threat | Mitigation | Verified by |
@@ -263,6 +271,5 @@ upgrade if that comes first (`expo-router` 58 no longer depends on `query-string
 - Fuzzing of libzim / llama.cpp loaders (Phase 2 gate).
 - Held-out adversarial sets 1–4 are used (decisions in Phase 1d, the Developer Preview and the
   post-preview hardening, 2026-10-11); a fresh unseen set is needed for any later decision.
-- Emergency cards: review by certified first-aid instructors (release blocker).
 - Desktop: code signing (SmartScreen); re-measure WebView2 egress on runtime upgrades (internal flag
   names); macOS (Keychain instead of DPAPI, WKWebView viewer).

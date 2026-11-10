@@ -1,4 +1,5 @@
-# Emergency cards and emergency numbers are safety-critical (docs/architecture.md, "User safety"):
-# every change needs review by people with first-aid training. The maintainer holds the folder until
-# the first-aid reviewers (at least two certified instructors) are added here by GitHub handle.
+# Emergency cards and emergency numbers are safety-critical (docs/architecture.md, "User safety").
+# Card steps are verbatim excerpts of their cited source edition (IFRC guidelines 2025, CDC, FEMA
+# Ready.gov): a change must stay verbatim to that edition and pass the source and drift checks
+# (tools/cards-source-check, .github/workflows/cards-sources-drift.yml). No instructor review is pending.
 /packages/emergency-cards/ @Fiouri

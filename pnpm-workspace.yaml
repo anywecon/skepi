@@ -23,4 +23,3 @@ overrides:
   'eslint-plugin-react-hooks>zod': ^4.6.6
   'node-llama-cpp>simple-git': ^4.0.1
   'simple-git>@simple-git/argv-parser': ^2.0.1
-  'xcode>uuid': ^11.1.1

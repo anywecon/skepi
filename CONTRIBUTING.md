@@ -35,6 +35,8 @@ requests are all useful.
   report-only; prompts, the sanitizer, lexicons and thresholds change only by an explicit maintainer
   decision recorded in the phase report (see `tools/rag-eval/README.md`).
 - Dependencies: pinned versions; native artefacts pinned by SHA-256 (`native/*`, `scripts/content.lock.json`).
+  npm versions must be at least 7 days old (`minimumReleaseAge` in `pnpm-workspace.yaml`); exceptions
+  only by the maintainer's decision, by exact version (`docs/release-process.md`, §4 "Dependency release age").
 - TypeScript strict, no `any`; Rust with `clippy -D warnings`; conventional commits in English.
 
 ## Checks

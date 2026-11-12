@@ -16,6 +16,12 @@ ignoredOptionalDependencies:
   - '@node-llama-cpp/linux-x64-cuda-ext'
   - '@node-llama-cpp/linux-x64-vulkan'
 
+# Supply-chain guard (docs/release-process.md, §4 "Dependency release age"): pnpm resolves no version that was
+# published less than 7 days (10080 minutes) ago, transitive ones included. Exceptions go in
+# minimumReleaseAgeExclude, by exact version (`name@version`), each with the date and the reason, and only
+# on the maintainer's explicit decision (an urgent security fix); remove the entry once it is 7 days old.
+minimumReleaseAge: 10080
+
 # Security overrides, scoped to the one consumer of each package (docs/threat-model.md, "Dependency risk acceptance").
 overrides:
   '@expo/cli>node-forge': 1.4.1

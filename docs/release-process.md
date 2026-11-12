@@ -126,7 +126,25 @@ pnpm from `packageManager`, a JDK 21, `pnpm install --frozen-lockfile`, `bash sc
 -PskepiJdk21=true`) and compare with `apk-compare.py same`. The CI job `fdroid-build` does the same through
 `fdroid build` and the F-Droid recipe in F-Droid's buildserver container.
 
-## 4. Not part of this flow
+## 4. Dependency release age
+
+`pnpm-workspace.yaml` sets `minimumReleaseAge: 10080`: pnpm resolves no npm version, direct or
+transitive, that was published less than 7 days ago (`ERR_PNPM_NO_MATURE_MATCHING_VERSION`). A range then
+resolves to the newest version that is old enough. The rule applies when versions are resolved (`pnpm add`,
+`pnpm update`, `pnpm install` after a manifest change); `pnpm install --frozen-lockfile` (CI, android-repro,
+the F-Droid recipe) installs the lockfile as it is, so the setting never breaks a reproducible build.
+
+- **Exceptions** only on the maintainer's explicit decision, for an urgent security fix that cannot wait a
+  week. They go in `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`, by exact version
+  (`'name@version'`, never a bare package name), one line per package including every fresh transitive
+  version the fix pulls in, each with a comment giving the date, the reason (advisory id) and the date the
+  entry can go (publish date + 7 days). Remove the entries once that date has passed.
+- Before taking a fresh version anyway, check it as on 2026-11-13 for expo 57.0.33: registry signatures
+  (`npm audit signatures` in a scratch project with the same versions), provenance compared with the
+  previous version, lifecycle scripts compared with the previous version, a diff of the published tarballs
+  (new files, binaries, network or process calls, obfuscated code), and the upstream issue tracker.
+
+## 5. Not part of this flow
 
 - Local Gradle-signed builds (`gradlew --no-daemon assembleRelease` inside `Use-SigningSecrets`,
   `docs/release-signing.md`) are possible but not the published artifact; device testing uses debug or

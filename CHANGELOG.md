@@ -5,6 +5,11 @@ suffix. Phase reports in `docs/` have the details and the measurements.
 
 ## [Unreleased]
 
+### Dependency updates
+- Expo SDK 57 patch updates: expo 57.0.33, expo-router 57.0.31, expo-constants 57.0.24, expo-crypto 57.0.4,
+  expo-linking 57.0.14. The Expo build tooling no longer uses zod 3, so the zod advisory GHSA-mrhx-c7xc-m3w5
+  listed as open in earlier release notes is resolved (it was never shipped in the apps).
+
 ## [0.2.3-preview] — Developer Preview (Android + Windows)
 
 Sixth published preview, for developers and testers. **Not for emergency use.** A security hardening

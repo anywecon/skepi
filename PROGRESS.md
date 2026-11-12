@@ -1,8 +1,12 @@
 **Current:** v0.2.3-preview published 2026-11-10 (https://github.com/anywecon/skepi/releases/tag/v0.2.3-preview); fdroiddata MR 53588 updated to 0.2.3-preview
-**Next step:** owner: follow F-Droid MR 53588 to merge. Still open: delete `SKEPI_RELEASE_*_PASSWORD` from `~/.gradle/gradle.properties` (owner).
-**Last session:** 2026-11-10 — v0.2.3-preview published by the owner; emergency-card review text brought up to date (verbatim-source model, no instructor review); release temp folders and the tag worktree removed; pnpm verify green
-**Last session:** 2026-11-10 — v0.2.3 step 6 green (upgrade gate PASS, S23 install -r keeps 5 packs Verified, Maestro 10/10, ICU, hand-offs); catalog-3 leftovers deleted on the S23 (no ignored files); MSI/NSIS built from tag 1e5f54c in a clean worktree, desktop smoke 34/34
+**Next step:** owner: decide on updating `@expo/cli` within SDK 57 (57.0.33+ drops zod 3, clears the last HIGH in osv-scanner); follow F-Droid MR 53588. Still open: delete `SKEPI_RELEASE_*_PASSWORD` from `~/.gradle/gradle.properties` (owner).
+**Last session:** 2026-11-12 — weekly osv scan follow-up: places requirements.txt pinned to requirements-ci.txt (+ drift test), osv-scanner.toml ignores decode-uri-component until 2027-02-12; zod left visible (fix path exists); pnpm verify, fresh-venv osm_extract.py, gitleaks green
 
+
+## Dependency scan follow-up 2026-11-12
+- requests 2.9.2 (PYSEC-2018-28) was an osv resolver artefact of the unpinned `places/requirements.txt`; it now pins the 8 versions of `requirements-ci.txt` (no hashes), and `tools/catalog-builder/test/requirements.test.ts` fails if they drift. A fresh venv installs exactly those 8 and runs `osm_extract.py` (with and without `--boundary`) on an extract built from the candidates fixture.
+- `osv-scanner.toml`: GHSA-qr28-fpjm-wq7f, GHSA-vcc3-ghjq-m6fr ignored until 2027-02-12 (threat model, Dependency risk acceptance). Fixed path only via Expo 58.
+- zod 3.25.76 (GHSA-mrhx-c7xc-m3w5) not ignored: `@expo/cli` 57.0.33 (2026-11-05) dropped zod; not upgraded, owner decides.
 
 ## v0.2.3-preview published 2026-11-10
 - GitHub pre-release https://github.com/anywecon/skepi/releases/tag/v0.2.3-preview (tag on `1e5f54cca367`): signed APK `c6f00304…4c34`, MSI `b982c945…75b2`, NSIS `5ebc14a8…bb1a`, SHA256SUMS.txt; the downloaded APK passes the F-Droid signature copy (owner).

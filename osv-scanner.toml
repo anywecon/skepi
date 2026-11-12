@@ -1,0 +1,12 @@
+# Accepted dependency risks: docs/threat-model.md, "Dependency risk acceptance".
+# Each entry expires on its re-check date, so the scan reports it again until it is reviewed.
+
+[[IgnoredVulns]]
+id = "GHSA-qr28-fpjm-wq7f"
+ignoreUntil = 2027-02-12
+reason = "decode-uri-component 0.2.2 via expo-router 57 -> query-string 7; fix 0.5.1 is ESM-only and breaks query-string 7. Deep links over 2048 characters are dropped (admitDeepLink). See docs/threat-model.md, Dependency risk acceptance."
+
+[[IgnoredVulns]]
+id = "GHSA-vcc3-ghjq-m6fr"
+ignoreUntil = 2027-02-12
+reason = "decode-uri-component 0.2.2 via expo-router 57 -> query-string 7; same path and mitigation as GHSA-qr28-fpjm-wq7f. See docs/threat-model.md, Dependency risk acceptance."

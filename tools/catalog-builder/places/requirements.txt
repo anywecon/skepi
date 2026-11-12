@@ -1,3 +1,11 @@
 # OSM extract reader for the places pack (places/osm_extract.py) and region tools (regions/). BSD-2-Clause / BSD-3-Clause.
+# requirements-ci.txt is the hashed source of truth (CI installs it with --require-hashes). This file pins the
+# same versions without hashes, for local installs on any platform; test/requirements.test.ts fails if they drift.
 osmium==4.3.1
 shapely==2.2.0
+numpy==2.5.4
+requests==2.34.2
+certifi==2026.10.23
+charset-normalizer==3.5.2
+idna==3.20
+urllib3==2.8.0

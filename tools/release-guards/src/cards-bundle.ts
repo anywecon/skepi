@@ -63,8 +63,13 @@ export function patternsOf(text: string): Buffer[] {
 }
 
 const HBC_MAGIC = 0x1f1903c103bc1fc6n;
-/** Hermes bytecode versions whose section layout hermesStrings knows (hermes-compiler of React Native 0.86: 98). */
-const HBC_VERSIONS: ReadonlySet<number> = new Set([98]);
+/**
+ * Hermes bytecode versions whose section layout hermesStrings knows: 98 (hermes-compiler of React Native
+ * 0.86) and 99 (React Native 0.88, hermes-compiler 260318099.0.5). Checked against facebook/hermes at
+ * 913d31ac (version 99): same BytecodeFileHeader offsets and size (128), SmallFuncHeader (12 bytes),
+ * visitBytecodeSegmentsInOrder and SmallStringTableEntry / OverflowStringTableEntry encoding as in 98.
+ */
+const HBC_VERSIONS: ReadonlySet<number> = new Set([98, 99]);
 /** BytecodeFileHeader (128 bytes) and SmallFuncHeader (12 bytes) of these versions. */
 const HBC_HEADER_SIZE = 128;
 const HBC_FUNCTION_HEADER_SIZE = 12;

@@ -76,8 +76,8 @@ describe('cards bundle check', () => {
 
   it('refuses Hermes bytecode of an unknown version and passes non-Hermes files to the text search', () => {
     const bundle = Buffer.from(compile('version', ['Access EMS.']));
-    bundle.writeUInt32LE(99, 8);
-    expect(() => hermesStrings(new Uint8Array(bundle))).toThrow(/version 99/);
+    bundle.writeUInt32LE(100, 8);
+    expect(() => hermesStrings(new Uint8Array(bundle))).toThrow(/version 100/);
     expect(hermesStrings(new Uint8Array(Buffer.from('var a="Access EMS.";', 'utf8')))).toBeNull();
     expect(() => literalPatternsOf('say "stop"')).toThrow(/quotes/);
   });

@@ -20,6 +20,15 @@ same day and offered to drop the property; the owner's later notes have no reply
 **Open:** the MR's description still says 0.2.0-preview. The text below is its 0.2.3-preview version (draft:
 v0.2.3-preview is not published yet; `org.skepi.app.yml` already targets its commit; 0.2.2-preview was not released).
 
+**Recipe for the first version on Expo SDK 58 (draft, checked 2026-11-18 against `main` after the upgrade; not
+sent):** no change besides the new build's `versionName`/`versionCode`/`commit`. `ndk: 27.1.12297006` stays
+(React Native 0.88.1 requests the same NDK); the `prebuild` sed line still matches MapLibre's
+`play-services-location` dependency (`@maplibre/maplibre-react-native` is unchanged); the four `scanignore`
+Gradle files and `node_modules/hermes-compiler` still exist; esbuild stays v0.28.2. Expo 58 adds the
+`noxcturnal` native transformer packages (prebuilt `.node` files, removed by `scandelete: node_modules`); Metro
+loads them only with `unstable_noxcturnalTransformWorker`, which the app does not set, so the build does not
+need them. The upstream CI `fdroid-build` job is the check that this holds.
+
 ---
 
 ## Abstract for new app inclusion

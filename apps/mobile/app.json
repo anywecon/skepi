@@ -46,7 +46,18 @@
       [
         "expo-localization",
         {
-          "supportedLocales": [
+          "supportedLocales": {
+            "ios": [
+              "en"
+            ],
+            "android": []
+          }
+        }
+      ],
+      [
+        "./plugins/withSkepiLocales",
+        {
+          "locales": [
             "en"
           ]
         }

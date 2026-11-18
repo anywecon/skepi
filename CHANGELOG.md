@@ -6,6 +6,10 @@ suffix. Phase reports in `docs/` have the details and the measurements.
 ## [Unreleased]
 
 ### Dependency updates
+- Expo SDK 58 (expo 58.0.24, React Native 0.88.1, React 19.3.0, expo-router 58.0.31): Android minSdk stays 24
+  (Android 7+), compileSdk 37, targetSdk 36. expo-router 58 no longer uses query-string, so the accepted
+  decode-uri-component advisories (GHSA-qr28-fpjm-wq7f, GHSA-vcc3-ghjq-m6fr) are gone from the mobile app.
+  Data of earlier versions (app.db, downloaded packs) is kept on update.
 - Expo SDK 57 patch updates: expo 57.0.33, expo-router 57.0.31, expo-constants 57.0.24, expo-crypto 57.0.4,
   expo-linking 57.0.14. The Expo build tooling no longer uses zod 3, so the zod advisory GHSA-mrhx-c7xc-m3w5
   listed as open in earlier release notes is resolved (it was never shipped in the apps).

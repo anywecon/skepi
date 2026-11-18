@@ -1,12 +1,24 @@
 # Accepted dependency risks: docs/threat-model.md, "Dependency risk acceptance".
 # Each entry expires on its re-check date, so the scan reports it again until it is reviewed.
+# 2026-11-18: GHSA-qr28-fpjm-wq7f and GHSA-vcc3-ghjq-m6fr (decode-uri-component via expo-router 57 -> query-string 7)
+# removed: Expo SDK 58 no longer depends on query-string (docs/threat-model.md).
 
 [[IgnoredVulns]]
-id = "GHSA-qr28-fpjm-wq7f"
-ignoreUntil = 2027-02-12
-reason = "decode-uri-component 0.2.2 via expo-router 57 -> query-string 7; fix 0.5.1 is ESM-only and breaks query-string 7. Deep links over 2048 characters are dropped (admitDeepLink). See docs/threat-model.md, Dependency risk acceptance."
+id = "GHSA-fc5q-39xc-vjpf"
+ignoreUntil = 2027-02-18
+reason = "picomatch 2.3.2 and 4.0.7 (no fixed release): ReDoS from a crafted glob pattern. Build and test tooling only (Metro, @expo/cli, Vite, Vitest, Jest); every pattern comes from the repository's own config. See docs/threat-model.md, Dependency risk acceptance."
 
 [[IgnoredVulns]]
-id = "GHSA-vcc3-ghjq-m6fr"
-ignoreUntil = 2027-02-12
-reason = "decode-uri-component 0.2.2 via expo-router 57 -> query-string 7; same path and mitigation as GHSA-qr28-fpjm-wq7f. See docs/threat-model.md, Dependency risk acceptance."
+id = "GHSA-6655-6qjp-jx7x"
+ignoreUntil = 2027-02-18
+reason = "soupsieve 2.10 in tools/rag-eval (dev tool, not shipped): ReDoS compiling a crafted CSS selector; the only selectors are constants in the repository. See docs/threat-model.md, Dependency risk acceptance."
+
+[[IgnoredVulns]]
+id = "GHSA-mmhr-3c5m-f64f"
+ignoreUntil = 2027-02-18
+reason = "soupsieve 2.10 in tools/rag-eval (dev tool, not shipped): slow descendant-combinator matching on crafted HTML; input is the maintainer's evaluation ZIM files. See docs/threat-model.md, Dependency risk acceptance."
+
+[[IgnoredVulns]]
+id = "GHSA-7g44-g9rc-x53w"
+ignoreUntil = 2027-02-18
+reason = "soupsieve 2.10 in tools/rag-eval (dev tool, not shipped): deep recursion compiling nested pseudo-class selectors; the only selectors are constants in the repository. See docs/threat-model.md, Dependency risk acceptance."

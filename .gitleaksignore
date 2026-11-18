@@ -13,5 +13,7 @@ ad2f0106747307d216be155a0998b11766c1e148:modules/expo-transfer/android/src/andro
 068bf5244093ac9dc6d79fc8e9fc7f1c054eab19:packages/core/test/transfer.test.ts:generic-api-key:83
 # fixed test token (packages/core/test/transfer.test.ts)
 068bf5244093ac9dc6d79fc8e9fc7f1c054eab19:packages/core/test/transfer.test.ts:generic-api-key:92
-# localhost test-mirror key: e2e/mirror/certs/README.md; authenticates only the local mirror on IP:127.0.0.1, trusted only by debug builds
+# former localhost test-mirror key (10-year set of 2026-10-05): untracked on 2026-11-18, the mirror certificates are now generated
+# on demand (e2e/mirror/gen-certs.mjs). This entry stays because history is not rewritten; the key only ever authenticated
+# the local mirror on IP:127.0.0.1, trusted only by debug builds built before 2026-11-18.
 d927dc1fe1752b2c5708253f184445075af8dfdc:e2e/mirror/certs/server.key:private-key:1

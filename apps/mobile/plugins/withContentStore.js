@@ -1,7 +1,9 @@
 // Phase 1c: signed catalog, downloads and the network boundary (CNG: android/ is generated, wired here).
 // - INTERNET / ACCESS_NETWORK_STATE come only from modules/expo-content-store (the one network user).
 // - Network security config: no cleartext, system CAs only. Debug builds additionally trust the local
-//   test mirror CA for 127.0.0.1 only and allow cleartext to Metro (localhost, emulator host).
+//   test mirror CA for 127.0.0.1 only and allow cleartext to Metro (localhost, emulator host). The CA
+//   (e2e/mirror/certs/ca.crt) is generated on demand and never committed: without it, prebuild still
+//   succeeds and the debug config simply has no test mirror entry. Release output never depends on it.
 // - Embedded catalog per build type, copied by a Gradle task from catalog/: debug = test catalog signed
 //   with the test key (+ test keys, local mirror as update source); release = catalog signed with the
 //   real key (+ release keys). A release build without a valid real-key catalog FAILS
@@ -26,8 +28,16 @@ const MAIN_NSC = `<?xml version="1.0" encoding="utf-8"?>
 </network-security-config>
 `;
 
-const DEBUG_NSC = `<?xml version="1.0" encoding="utf-8"?>
-<!-- SKEPI debug builds only: Metro over cleartext, the local HTTPS test mirror (127.0.0.1 via adb reverse). -->
+const TEST_MIRROR_NSC = `
+  <domain-config cleartextTrafficPermitted="false">
+    <domain includeSubdomains="false">127.0.0.1</domain>
+    <trust-anchors>
+      <certificates src="@raw/skepi_test_mirror_ca" />
+    </trust-anchors>
+  </domain-config>`;
+
+const debugNsc = (withTestMirror) => `<?xml version="1.0" encoding="utf-8"?>
+<!-- SKEPI debug builds only: Metro over cleartext${withTestMirror ? ', the local HTTPS test mirror (127.0.0.1 via adb reverse)' : ''}. -->
 <network-security-config>
   <base-config cleartextTrafficPermitted="false">
     <trust-anchors>
@@ -38,13 +48,7 @@ const DEBUG_NSC = `<?xml version="1.0" encoding="utf-8"?>
     <domain includeSubdomains="false">localhost</domain>
     <domain includeSubdomains="false">10.0.2.2</domain>
     <domain includeSubdomains="false">10.0.3.2</domain>
-  </domain-config>
-  <domain-config cleartextTrafficPermitted="false">
-    <domain includeSubdomains="false">127.0.0.1</domain>
-    <trust-anchors>
-      <certificates src="@raw/skepi_test_mirror_ca" />
-    </trust-anchors>
-  </domain-config>
+  </domain-config>${withTestMirror ? TEST_MIRROR_NSC : ''}
 </network-security-config>
 `;
 
@@ -71,8 +75,19 @@ const withNetworkSecurity = (config) => {
         fs.writeFileSync(file, text);
       };
       write(path.join('main', 'res', 'xml', 'network_security_config.xml'), MAIN_NSC);
-      write(path.join('debug', 'res', 'xml', 'network_security_config.xml'), DEBUG_NSC);
-      write(path.join('debug', 'res', 'raw', 'skepi_test_mirror_ca.pem'), fs.readFileSync(TEST_CA, 'utf8'));
+      const caFile = path.join(appDir, 'debug', 'res', 'raw', 'skepi_test_mirror_ca.pem');
+      const withTestMirror = fs.existsSync(TEST_CA);
+      write(path.join('debug', 'res', 'xml', 'network_security_config.xml'), debugNsc(withTestMirror));
+      if (withTestMirror) {
+        write(path.relative(appDir, caFile), fs.readFileSync(TEST_CA, 'utf8'));
+      } else {
+        // A copy left by an earlier prebuild would make the E2E CA check pass for a CA nothing trusts.
+        fs.rmSync(caFile, { force: true });
+        console.log(
+          'SKEPI: e2e/mirror/certs/ca.crt not found: the debug build will not trust the local test mirror ' +
+            '(run node e2e/mirror/gen-certs.mjs, then prebuild again, for the mirror E2E). Release builds are unaffected.',
+        );
+      }
       return cfg;
     },
   ]);

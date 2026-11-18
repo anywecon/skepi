@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "license": "GPL-3.0-or-later",
-  "description": "Release guards: permission allowlist (aapt2), release JS bundle rebuild probe, emergency-card text in the built bundles",
+  "description": "Release guards: permission allowlist (aapt2), release JS bundle rebuild probe, emergency-card text in the built bundles, no tracked private keys",
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -11,7 +11,8 @@
     "test": "vitest run",
     "permissions": "tsx src/permissions-cli.ts",
     "bundle-probe": "tsx src/bundle-probe-cli.ts",
-    "cards-bundle": "tsx src/cards-bundle-cli.ts"
+    "cards-bundle": "tsx src/cards-bundle-cli.ts",
+    "private-keys": "tsx src/private-keys-cli.ts"
   },
   "devDependencies": {
     "@types/node": "22.19.1",

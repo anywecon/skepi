@@ -12,6 +12,7 @@ import { createServer as createHttp } from 'node:http';
 import { createServer } from 'node:https';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SERVER_CERT, SERVER_KEY, ensureCerts } from './gen-certs.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, '..', '..');
@@ -129,7 +130,9 @@ function handle(req, res) {
   appendFileSync(LOG, `${JSON.stringify(entry)}\n`);
 }
 
-const tls = { key: readFileSync(join(HERE, 'certs', 'server.key')), cert: readFileSync(join(HERE, 'certs', 'server.crt')) };
+// Certificates are generated on demand (gen-certs.mjs), never committed.
+ensureCerts();
+const tls = { key: readFileSync(SERVER_KEY), cert: readFileSync(SERVER_CERT) };
 createServer(tls, handle).listen(PORT, '127.0.0.1', () => {
   console.log(`test mirror on https://127.0.0.1:${PORT} (mode ${mode})`);
 });

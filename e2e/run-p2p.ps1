@@ -38,6 +38,7 @@ $ErrorActionPreference = 'Stop'
 # Shared device lock (scripts/device-lock.ps1): waits while another project or session uses the
 # device and never stops their processes; released in the finally block at the end of this script.
 . (Join-Path (Split-Path -Parent $PSScriptRoot) 'scripts\device-lock-lib.ps1')
+. (Join-Path $PSScriptRoot 'mirror\mirror-certs.ps1')
 $deviceLocks = @(@($HostSerial, $ReceiverSerial) | Sort-Object | ForEach-Object { Enter-DeviceLock -Serial $_ -Purpose 'e2e/run-p2p.ps1' })
 try {
 
@@ -93,7 +94,9 @@ try {
   $recvIp = ((Adb $ReceiverSerial shell ip -4 addr show wlan0) | Select-String -Pattern 'inet (\d+\.\d+\.\d+\.\d+)').Matches[0].Groups[1].Value
   Write-Host "host $hostIp, receiver $recvIp (shared virtual Wi-Fi)"
 
-  # Host: newer catalog from the local test mirror (host emulator only).
+  # Host: newer catalog from the local test mirror (host emulator only); its debug app must embed ca.crt.
+  Initialize-MirrorCerts
+  Assert-InstalledAppTrustsMirror @('-s', $HostSerial) $AppId
   $server = Start-Process -FilePath node -ArgumentList (Join-Path $PSScriptRoot 'mirror\server.mjs') -PassThru -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $out 'mirror-stdout.txt') -RedirectStandardError (Join-Path $out 'mirror-stderr.txt')
   Start-Sleep -Seconds 2

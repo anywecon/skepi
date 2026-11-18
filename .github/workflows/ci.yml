@@ -96,6 +96,9 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # First check of the pipeline: no tracked private key or keystore (allowlist in the guard, empty).
+      - name: No private keys in the repository
+        run: node node_modules/tsx/dist/cli.mjs tools/release-guards/src/private-keys-cli.ts
       - name: Every file the test catalogs, manifests and tests use is committed
         run: pnpm --filter @skepi/catalog-builder exec tsx src/cli.ts check-fixtures
       - run: pnpm typecheck
@@ -368,6 +371,10 @@ jobs:
         env:
           VULKAN_SDK: ''
         run: ./scripts/with-msvc.ps1 cargo build -p skepi-desktop --no-default-features
+      # The test mirror certificates are generated per run (never committed); the test-mirror feature
+      # embeds this run's ca.crt.
+      - name: Test mirror certificates (fresh CA for 127.0.0.1, CA key deleted)
+        run: node e2e/mirror/gen-certs.mjs
       - name: Downloads against the local HTTPS test mirror (Node)
         shell: pwsh
         run: ./scripts/with-msvc.ps1 cargo test -p desktop-core --features test-mirror --test downloads

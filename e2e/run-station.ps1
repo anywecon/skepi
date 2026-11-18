@@ -78,6 +78,10 @@ function Invoke-Flow([string]$AppId, [string]$Pack, [string]$Deselect, [string]$
   }
 }
 
+# Test mirror certificates (generated on demand); the desktop debug build must embed this ca.crt.
+. (Join-Path $root 'e2e\mirror\mirror-certs.ps1')
+Initialize-MirrorCerts
+Assert-DesktopTrustsMirror $App
 $mirror = Start-Process -FilePath node -ArgumentList @((Join-Path $root 'e2e\mirror\server.mjs')) -PassThru -WindowStyle Hidden
 Start-Sleep -Seconds 2
 $hostArgs = @((Join-Path $root 'apps\desktop\e2e\station-host.mjs'), '--app', $App, '--content', $content, '--appdata', $appData, '--host', $HostIp,

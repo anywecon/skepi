@@ -78,12 +78,17 @@ try {
     return $total
   }
 
+  # Test mirror certificates (generated on demand); the debug app must embed this ca.crt.
+  . (Join-Path $PSScriptRoot 'mirror\mirror-certs.ps1')
+  Initialize-MirrorCerts
   if ($Apk) {
+    Assert-ApkTrustsMirror $Apk
     Invoke-Adb install -r $Apk | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "adb install $Apk failed" }
   }
   $uid = ((Invoke-Adb shell dumpsys package $AppId) | Select-String -Pattern 'appId=(\d+)' | Select-Object -First 1).Matches[0].Groups[1].Value
   if (-not $uid) { throw "$AppId is not installed (build: gradlew assembleDebug -PskepiBundleDebug=true)" }
+  Assert-InstalledAppTrustsMirror $adbArgs $AppId
   Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $out 'mirror-log.jsonl')
 
   $env:MIRROR_MAPS_DIR = $cache

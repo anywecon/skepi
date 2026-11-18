@@ -14,8 +14,9 @@ coverage/
 keystore.properties
 .env
 .env.*
-# Test-only key of the local E2E mirror; debug builds trust its CA for 127.0.0.1 only (see its README).
-!e2e/mirror/certs/server.key
+# Local E2E mirror certificates: generated on demand by e2e/mirror/gen-certs.mjs, never committed.
+e2e/mirror/certs/*.crt
+e2e/mirror/certs/*.key
 
 # Provisioned content (large, never committed)
 .cache/

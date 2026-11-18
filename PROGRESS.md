@@ -1,7 +1,81 @@
-**Current:** v0.2.3-preview published 2026-11-10 (https://github.com/anywecon/skepi/releases/tag/v0.2.3-preview); fdroiddata MR 53588 updated to 0.2.3-preview
-**Next step:** owner: follow F-Droid MR 53588. Still open: delete `SKEPI_RELEASE_*_PASSWORD` from `~/.gradle/gradle.properties` (owner). Next re-check of the accepted decode-uri-component advisories: 2027-02-12 (or at Expo 58).
-**Last session:** 2026-11-13 — supply-chain check of expo 57.0.33 and the 34 other changed packages: nothing suspicious, no revert; `minimumReleaseAge: 10080` guard added; pnpm verify 50/50, clean-clone frozen install, gitleaks green
+**Current:** v0.2.3-preview published 2026-11-10; on `main` (not pushed): test-mirror certificates generated on demand (untracked) + private-key guard, Expo SDK 58 (expo 58.0.24, RN 0.88.1)
+**Next step:** owner: connect the S23 (USB, unlocked) for Maestro in airplane mode on org.skepi.app.dev; restore `e2e/run-download-e2e.ps1` from Norton quarantine (then `git checkout -- e2e/run-download-e2e.ps1`) and re-provision the `skepi-host` AVD (wiped by mistake); then push and check CI + android-repro. Still open: delete `SKEPI_RELEASE_*_PASSWORD` from `~/.gradle/gradle.properties` (owner).
+**Last session:** 2026-11-18 — Control Room review: Part 1 (certs off git, key guard) and Part 2 (Expo SDK 58) committed locally; pnpm verify 50/50, release byte-identical after Part 1, clean-clone SDK 58 release, upgrade gate 3/3, connectedAndroidTest 49/49 on an API 36 emulator; S23 gates not run (device absent), not pushed
 
+
+## Control Room review 2026-11-18: test-mirror certificates and Expo SDK 58 (not pushed, no release, no tag)
+Commits on `main` after `dbf3d34`: `e9647b4`, `90a3bda` (Part 1), `bbbd162` (Part 2), `41b381c` (guard CLI fix).
+
+**Part 1: test-mirror certificates generated on demand.**
+- `e2e/mirror/gen-certs.mjs` (openssl CLI; Git's openssl on Windows, clear error without one): fresh "SKEPI Test
+  Mirror CA" (EC P-256, pathlen 0) per machine, server cert for IP:127.0.0.1 only, 90 days, written to
+  `e2e/mirror/certs/` (gitignored); the CA key is deleted right after signing; regenerates when missing, mismatched,
+  long-lived or expiring within 7 days, `--force` always. `server.mjs` and the E2E scripts call it first; the Android
+  E2E scripts compare the APK's `res/raw/skepi_test_mirror_ca.pem` SHA-256 with `ca.crt` ("rebuild the debug app");
+  `run-station.ps1` checks the desktop exe; CI runs gen-certs before the desktop test-mirror cargo test; `build.rs`
+  fails clearly without `ca.crt` when the feature is on.
+- `withContentStore.js`: without `ca.crt` the debug network security config is written without the 127.0.0.1 entry
+  and one notice is printed; release and the F-Droid path need no certs.
+- `git rm --cached` of `ca.crt`, `server.crt`, `server.key`; README, threat model ("Debug trust leaking into
+  release" rewritten, new row "Private key committed to the repository"), `.gitleaksignore` comment (the d927dc1
+  `server.key` history entry stays).
+- Guard: `tools/release-guards` private-keys (CI verify job): fails on tracked `*.key`/`.p12`/`.pfx`/`.jks`/
+  `.keystore`/`.p8`/`.pk8`/`.ppk` or any file with a PEM private-key armour line; allowlist empty. Proven on a
+  never-pushed scratch branch (exit 1 on a `.jks` and a text file with a key block; branch deleted).
+- Verified: release APK byte-identical before/after on clean clones (`dbf3d34` and `90a3bda`: unsigned
+  `375630ddf595da8fecdf20a2f8a33154b81d9637d682015831f768f69c815fa1`, local Windows JDK 21; the CI comparison runs
+  after the push); pnpm verify 50/50; catalog-builder 52/52; release-guards 28/28; fmt, clippy (also with
+  test-mirror), deny; desktop tauri build (MSI 43.07 MiB, NSIS 26.88 MiB) and smoke 34/34; upgrade gate v0.2.3 PASS;
+  gitleaks clean. code-reviewer: one MUST-FIX (the guard flagged its own doc comment) fixed.
+
+**Part 2: Expo SDK 57 -> 58.**
+- expo ~58.0.24 (58.0.26 was 1 day old; 58.0.24 is the newest patch at least 7 days old), RN 0.88.1, React 19.3.0,
+  expo-router 58.0.31 and the SDK's module set, resolved through the `minimumReleaseAge` gate (the stale 57.x/0.87.x
+  peers of the `modules/*` packages had to be dropped from the lockfile once so pnpm re-resolved them). No stop
+  condition: minSdk 24, NDK 27.1.12297006 (= F-Droid recipe), JDK 21 path unchanged; llama.rn, MapLibre, op-sqlite
+  unchanged; expo-secure-store 58.0.3. `expo install --check` / expo-doctor: only the too-new patches (58.0.26,
+  router 58.0.32) and the desktop's React 19.2.3 (react-dom 19.2.3 does not reach the Android bundle, checked in the
+  Hermes string table). All five pnpm overrides still have consumers.
+- expo-localization 58 breaks prebuild on a non-numeric versionName: `apps/mobile/plugins/withSkepiLocales.js`
+  (tested) does its Android part; drop it when expo-localization is fixed. Hermes bytecode 99 added to the cards
+  bundle scan.
+- Supply chain (93 changed versions vs `90a3bda`): registry signatures 93/93 verified, provenance 76 (Expo SDK 58
+  publishes through GitHub Actions with provenance, hence "publisher alanhughes -> GitHub Actions"); no install
+  scripts anywhere; tarball diffs reviewed: the binaries are Expo's `local-maven-repo` AARs (unused, modules are built
+  from source), iOS archives, RN's gradle-wrapper.jar and fbt language packs, hermesc, worklets' oxc plugins; added
+  hosts are docs and Expo/RN services. New package `noxcturnal` (github.com/expo/noxcturnal, public, Expo maintainer,
+  no provenance): Metro uses it only with `unstable_noxcturnalTransformWorker`, not set here. Nothing reverted.
+- query-string/decode-uri-component gone: both osv ignores removed, threat-model row closed. New HIGH advisories
+  accepted until 2027-02-18 (threat model + osv ignores): picomatch GHSA-fc5q-39xc-vjpf (no fixed release; build and
+  test tooling only), soupsieve 2.10 in `tools/rag-eval` (fixed in 3.0.2/4.0.0; follow-up: bump the pin and rerun
+  the rag-eval smoke). With `--config osv-scanner.toml`: 0 HIGH/CRITICAL.
+- Upgrade gate (`-DebugSigned`, throwaway key per run, API 36 emulator): v0.1.2, v0.2.1, v0.2.3 -> SDK 58 candidate
+  PASS (app.db opens with its old key straight to the home screen, every pack verified, no app.db or secure-storage
+  error in logcat); v0.2.3 re-run with the reviewed script PASS.
+- F-Droid recipe: no change for SDK 58 besides version/commit (note in `docs/fdroid/merge-request.md`); the CI
+  `fdroid-build` job is the proof.
+- Verified: pnpm verify 50/50; mobile 34/34; release-guards 28/28; catalog-builder 52/52; notices check (Gradle
+  runtime classpath 158 maven modules, was 211: Compose and AndroidX activity/lifecycle are no longer pulled in);
+  clean-clone frozen install + unsigned preview `assembleRelease` at `bbbd162`:
+  `b4b1695f8a2bcdd27057979daf6b4b5e0683ec6cb272804f388d7f879c63ca70` (local Windows JDK 21, not comparable with CI),
+  cards 111/111, permission allowlist PASS; `connectedAndroidTest` on the API 36 emulator 49/49 (content-store 15,
+  emergency-tools 6, hash 3, zim 13, transfer 12); gitleaks on the 4 commits: no leaks; private-key guard over 2173
+  tracked files PASS. code-reviewer: no MUST-FIX; both SHOULD-FIX (logcat pattern, debug-signed label) and most NITs
+  applied.
+
+**Not run / blocked (why the commits are not pushed).**
+- S23 absent the whole session (no USB/mDNS device for 2 h): `connectedAndroidTest` on the S23 and Maestro in
+  airplane mode on org.skepi.app.dev not run (emulator substitute above for the instrumented tests only).
+- Mirror E2E: `run-download-e2e.ps1` on the emulator with the Part 1 debug build: the CA check passed (the installed
+  app embeds the current `ca.crt`), the downloads failed with "Trust anchor for certification path not found"
+  because Norton intercepts the TLS (`curl --cacert ca.crt https://127.0.0.1:8443`: issuer "OU=generated by Norton
+  Antivirus for untrusted server certificates, O=Norton Web/Mail Shield, CN=Norton Web/Mail Shield Untrusted Root";
+  the emulator's own Google TLS failed the same way). `run-countries-e2e.ps1`: same issuer, not run. After the run
+  Norton removed `e2e/run-download-e2e.ps1` from the working tree and blocks restoring it ("Permission denied").
+- Mistake: an emulator start with `-wipe-data` wiped the `skepi-host` AVD (P2P host); re-provision it before the
+  next `run-p2p.ps1`.
+- Desktop: unchanged by Part 2 (same importer resolution, no Rust changes); build and smoke ran in Part 1 only.
+- CI and android-repro (a = b = fdroid-build) run after the push.
 
 ## Supply-chain check and release-age guard 2026-11-13 (no release, no tag)
 - Checked the 35 package versions that changed in e0adc98..0afbe9f (expo 57.0.33, @expo/cli 57.0.34, 33 others): `npm audit signatures` in a scratch project with the same versions: 548/548 registry signatures verified, 159 attestations. Provenance: Expo never published with provenance (previous versions neither); glob 14.0.6, minimatch 11.0.8, @expo/env 2.6.0 (GitHub Actions trusted publisher) have it; none lost it. Install scripts: no install/postinstall anywhere, unchanged (`prepare` only, not run for registry tarballs). Publisher of every Expo SDK 57 release is the same account; gitHeads are expo/expo "Publish packages" commits minutes before publishing. Tarball diffs vs the previous versions: new Android AARs are the per-version renames in `local-maven-repo` (sha256 sidecars match, same entries, no native libs, new @expo/ui classes all have sources); iOS xcframework tarballs and the create-expo template changed (not used by our Android/desktop builds); added-line scan found no new network calls, exfiltration paths or obfuscation (hits: the dev-server DevTools plugin executor in @expo/cli spawns `process.execPath`, xcode's existing `fork` refactored, brace-expansion `fromCharCode` in glob). expo/expo issues and advisories: no report about these versions. Verdict: nothing suspicious, kept.

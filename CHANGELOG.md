@@ -5,6 +5,12 @@ suffix. Phase reports in `docs/` have the details and the measurements.
 
 ## [Unreleased]
 
+### Security
+- The test mirror's TLS certificates (used only by the debug build's end-to-end tests) are no longer in the
+  repository: each machine generates a short-lived CA and server certificate (`e2e/mirror/gen-certs.mjs`), and
+  the CA private key is deleted right after signing. CI fails on any committed private key or keystore.
+  Release builds are byte-identical and never trusted the test CA.
+
 ### Dependency updates
 - Expo SDK 58 (expo 58.0.24, React Native 0.88.1, React 19.3.0, expo-router 58.0.31): Android minSdk stays 24
   (Android 7+), compileSdk 37, targetSdk 36. expo-router 58 no longer uses query-string, so the accepted

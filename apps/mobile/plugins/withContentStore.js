@@ -68,29 +68,33 @@ const withNetworkSecurity = (config) => {
   return withDangerousMod(config, [
     'android',
     (cfg) => {
-      const appDir = path.join(cfg.modRequest.platformProjectRoot, 'app', 'src');
-      const write = (rel, text) => {
-        const file = path.join(appDir, rel);
-        fs.mkdirSync(path.dirname(file), { recursive: true });
-        fs.writeFileSync(file, text);
-      };
-      write(path.join('main', 'res', 'xml', 'network_security_config.xml'), MAIN_NSC);
-      const caFile = path.join(appDir, 'debug', 'res', 'raw', 'skepi_test_mirror_ca.pem');
-      const withTestMirror = fs.existsSync(TEST_CA);
-      write(path.join('debug', 'res', 'xml', 'network_security_config.xml'), debugNsc(withTestMirror));
-      if (withTestMirror) {
-        write(path.relative(appDir, caFile), fs.readFileSync(TEST_CA, 'utf8'));
-      } else {
-        // A copy left by an earlier prebuild would make the E2E CA check pass for a CA nothing trusts.
-        fs.rmSync(caFile, { force: true });
-        console.log(
-          'SKEPI: e2e/mirror/certs/ca.crt not found: the debug build will not trust the local test mirror ' +
-            '(run node e2e/mirror/gen-certs.mjs, then prebuild again, for the mirror E2E). Release builds are unaffected.',
-        );
-      }
+      writeNetworkSecurityFiles(path.join(cfg.modRequest.platformProjectRoot, 'app', 'src'));
       return cfg;
     },
   ]);
+};
+
+/** Writes the main and debug network security configs (and the debug CA copy) under android/app/src. */
+const writeNetworkSecurityFiles = (appDir, testCa = TEST_CA) => {
+  const write = (rel, text) => {
+    const file = path.join(appDir, rel);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, text);
+  };
+  write(path.join('main', 'res', 'xml', 'network_security_config.xml'), MAIN_NSC);
+  const caRel = path.join('debug', 'res', 'raw', 'skepi_test_mirror_ca.pem');
+  const withTestMirror = fs.existsSync(testCa);
+  write(path.join('debug', 'res', 'xml', 'network_security_config.xml'), debugNsc(withTestMirror));
+  if (withTestMirror) {
+    write(caRel, fs.readFileSync(testCa, 'utf8'));
+    return;
+  }
+  // A copy left by an earlier prebuild would make the E2E CA check pass for a CA nothing trusts.
+  fs.rmSync(path.join(appDir, caRel), { force: true });
+  console.log(
+    'SKEPI: e2e/mirror/certs/ca.crt not found: the debug build will not trust the local test mirror ' +
+      '(run node e2e/mirror/gen-certs.mjs, then prebuild again, for the mirror E2E). Release builds are unaffected.',
+  );
 };
 
 const GRADLE_MARKER = '// skepi:catalog';
@@ -173,3 +177,5 @@ const withCatalogGradle = (config) =>
   });
 
 module.exports = (config) => withCatalogGradle(withNetworkSecurity(config));
+// For tests (apps/mobile/test/networkSecurity.test.ts).
+module.exports.writeNetworkSecurityFiles = writeNetworkSecurityFiles;

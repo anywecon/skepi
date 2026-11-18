@@ -8,13 +8,14 @@
 // After a regeneration, debug apps built before it trust the old CA: rebuild them (README.md).
 import { spawnSync } from 'node:child_process';
 import { X509Certificate, createHash, createPrivateKey, randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-export const CERTS_DIR = join(HERE, 'certs');
+// SKEPI_GEN_CERTS_TEST_DIR is for tests only (tools/release-guards/test/gen-certs.test.ts); consumers read certs/.
+export const CERTS_DIR = process.env.SKEPI_GEN_CERTS_TEST_DIR ?? join(HERE, 'certs');
 export const CA_CERT = join(CERTS_DIR, 'ca.crt');
 export const SERVER_CERT = join(CERTS_DIR, 'server.crt');
 export const SERVER_KEY = join(CERTS_DIR, 'server.key');
@@ -89,8 +90,6 @@ function utcTime(ms) {
 
 function generate(openssl, now) {
   const work = mkdtempSync(join(tmpdir(), 'skepi-mirror-certs-'));
-  // openssl config values treat "\" as an escape character: forward slashes work on every platform.
-  const dir = work.replaceAll('\\', '/');
   const caKey = join(work, 'ca.key');
   const run = (...args) => {
     const r = spawnSync(openssl, args, { cwd: work, encoding: 'utf8', windowsHide: true });
@@ -108,7 +107,8 @@ function generate(openssl, now) {
         '[ ca ]',
         'default_ca = mirror',
         '[ mirror ]',
-        `dir = ${dir}`,
+        // openssl runs in `work`: a relative dir keeps the temp path out of the config parser.
+        'dir = .',
         'database = $dir/index.txt',
         'new_certs_dir = $dir/issued',
         'serial = $dir/serial',
@@ -166,8 +166,9 @@ function generate(openssl, now) {
       [SERVER_CERT, serverPem, 0o644],
       [CA_CERT, caPem, 0o644],
     ];
-    for (const [file, bytes, mode] of files) writeFileSync(`${file}.tmp`, bytes, { mode });
-    for (const [file] of files) renameSync(`${file}.tmp`, file);
+    const suffix = `.${process.pid}-${randomBytes(4).toString('hex')}.tmp`;
+    for (const [file, bytes, mode] of files) writeFileSync(`${file}${suffix}`, bytes, { mode });
+    for (const [file] of files) renameSync(`${file}${suffix}`, file);
     return server.validTo;
   } finally {
     rmSync(work, { recursive: true, force: true });
@@ -194,7 +195,15 @@ export function caSha256() {
   return createHash('sha256').update(readFileSync(CA_CERT)).digest('hex');
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+// Node runs the main module from its real path: compare real paths (junctions, subst drives).
+const isMain = (() => {
+  try {
+    return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+})();
+if (isMain) {
   const args = process.argv.slice(2);
   const unknown = args.filter((a) => a !== '--force');
   if (unknown.length > 0) {

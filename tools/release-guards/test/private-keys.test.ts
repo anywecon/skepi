@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { PRIVATE_KEY_ALLOWLIST, findPrivateKeys, privateKeyReason, trackedFiles } from '../src/private-keys';
 
@@ -44,6 +45,11 @@ describe('private key guard', () => {
     expect(PRIVATE_KEY_ALLOWLIST).toEqual([]);
   });
 
+  it('finds no private key in this repository', { timeout: 60_000 }, () => {
+    const repo = fileURLToPath(new URL('../../..', import.meta.url));
+    expect(findPrivateKeys(trackedFiles(repo))).toEqual([]);
+  });
+
   describe('tracked files of a repository', () => {
     const roots: string[] = [];
     afterEach(() => {
@@ -54,7 +60,7 @@ describe('private key guard', () => {
       if (r.status !== 0) throw new Error(`git ${args.join(' ')}: ${r.stderr}`);
     };
 
-    it('checks only what git tracks, including keys that .gitignore would hide', () => {
+    it('checks only what git tracks, including keys that .gitignore would hide', { timeout: 30_000 }, () => {
       const root = mkdtempSync(join(tmpdir(), 'skepi-private-keys-'));
       roots.push(root);
       git(root, 'init', '-q');

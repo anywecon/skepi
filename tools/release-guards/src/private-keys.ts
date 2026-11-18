@@ -15,9 +15,12 @@ import { join } from 'node:path';
 export const PRIVATE_KEY_ALLOWLIST: readonly string[] = [];
 
 /** Key and keystore formats, refused by name alone (binary formats have no PEM marker to look for). */
-export const KEY_FILE_EXTENSIONS = ['.key', '.p12', '.pfx', '.jks', '.keystore'] as const;
+export const KEY_FILE_EXTENSIONS = ['.key', '.p12', '.pfx', '.jks', '.keystore', '.p8', '.pk8', '.ppk'] as const;
 
-/** `-----BEGIN PRIVATE KEY-----`, `... RSA PRIVATE KEY-----`, `... OPENSSH ...`, `... ENCRYPTED ...`, PGP blocks. */
+/**
+ * PEM "BEGIN ... PRIVATE KEY" armour lines: PKCS#8, RSA, EC, OPENSSH, ENCRYPTED and PGP blocks. Never
+ * write a complete armour line in this repository (not even in a comment): the guard would flag it.
+ */
 const PEM_PRIVATE_KEY = /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----/;
 
 export interface PrivateKeyFinding {

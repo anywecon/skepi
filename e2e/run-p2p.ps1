@@ -78,6 +78,9 @@ $results = @()
 $server = $null
 Push-Location $root
 try {
+  # Test mirror certificates first: the host's debug app must embed this ca.crt (fail before any device change).
+  Initialize-MirrorCerts
+  Assert-InstalledAppTrustsMirror @('-s', $HostSerial) $AppId
   foreach ($s in @($HostSerial, $ReceiverSerial)) {
     Adb $s shell pm clear $AppId | Out-Null
     Start-Sleep -Seconds 2
@@ -94,9 +97,7 @@ try {
   $recvIp = ((Adb $ReceiverSerial shell ip -4 addr show wlan0) | Select-String -Pattern 'inet (\d+\.\d+\.\d+\.\d+)').Matches[0].Groups[1].Value
   Write-Host "host $hostIp, receiver $recvIp (shared virtual Wi-Fi)"
 
-  # Host: newer catalog from the local test mirror (host emulator only); its debug app must embed ca.crt.
-  Initialize-MirrorCerts
-  Assert-InstalledAppTrustsMirror @('-s', $HostSerial) $AppId
+  # Host: newer catalog from the local test mirror (host emulator only).
   $server = Start-Process -FilePath node -ArgumentList (Join-Path $PSScriptRoot 'mirror\server.mjs') -PassThru -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $out 'mirror-stdout.txt') -RedirectStandardError (Join-Path $out 'mirror-stderr.txt')
   Start-Sleep -Seconds 2

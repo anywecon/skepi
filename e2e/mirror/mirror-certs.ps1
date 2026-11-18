@@ -37,7 +37,13 @@ function Get-InstalledMirrorCaSha256([string[]]$AdbArgs, [string]$AppId) {
   $base = @(& adb.exe @AdbArgs shell pm path $AppId) | Where-Object { $_ -match '^package:(\S*base\.apk)\s*$' } | Select-Object -First 1
   if (-not $base) { throw "$AppId is not installed (build: gradlew assembleDebug -PskepiBundleDebug=true)" }
   $apkPath = ($base -replace '^package:', '').Trim()
-  $probe = "if command -v unzip >/dev/null 2>&1; then if unzip -l '$apkPath' 2>/dev/null | grep -q '$($script:MirrorCaEntry)'; then unzip -p '$apkPath' '$($script:MirrorCaEntry)' | sha256sum; else echo none; fi; else echo no-unzip; fi"
+  # Any unzip failure (missing tool, unreadable APK, another ziptool) answers "no-unzip": pull instead.
+  $entry = $script:MirrorCaEntry
+  $probe = "command -v unzip >/dev/null 2>&1 || { echo no-unzip; exit 0; }; " +
+    "l=`$(unzip -l '$apkPath' 2>/dev/null) || { echo no-unzip; exit 0; }; " +
+    "case `$l in *'$entry'*) ;; *) echo none; exit 0;; esac; " +
+    "unzip -p '$apkPath' '$entry' > /data/local/tmp/skepi-mirror-ca.pem 2>/dev/null && [ -s /data/local/tmp/skepi-mirror-ca.pem ] || { rm -f /data/local/tmp/skepi-mirror-ca.pem; echo no-unzip; exit 0; }; " +
+    "sha256sum /data/local/tmp/skepi-mirror-ca.pem; rm -f /data/local/tmp/skepi-mirror-ca.pem"
   $answer = (@(& adb.exe @AdbArgs shell $probe) -join ' ').Trim()
   if ($answer -match '^([0-9a-f]{64})\b') { return $Matches[1] }
   if ($answer -eq 'none') { return $null }
@@ -71,6 +77,7 @@ function Assert-ApkTrustsMirror([string]$Apk) {
 # A desktop debug build with the test-mirror feature embeds ca.crt verbatim (include_bytes!).
 function Assert-DesktopTrustsMirror([string]$Exe) {
   $ca = Join-Path $script:MirrorDir 'certs\ca.crt'
+  if (-not (Test-Path -PathType Leaf $Exe)) { throw "$Exe not found: build the desktop debug app with the test-mirror feature (cargo build -p skepi-desktop --features test-mirror)" }
   & node -e 'const fs = require(''fs''); process.exit(fs.readFileSync(process.argv[1]).includes(fs.readFileSync(process.argv[2])) ? 0 : 1)' $Exe $ca
   if ($LASTEXITCODE -ne 0) {
     throw "$Exe does not embed the current e2e/mirror/certs/ca.crt: rebuild the desktop debug app with the test-mirror feature (cargo build -p skepi-desktop --features test-mirror)"

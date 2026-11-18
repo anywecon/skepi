@@ -1,6 +1,6 @@
-**Current:** v0.2.3-preview published 2026-11-10; on `main` (not pushed): test-mirror certificates generated on demand (untracked) + private-key guard, Expo SDK 58 (expo 58.0.24, RN 0.88.1)
-**Next step:** owner turns Norton Web/Mail Shield off; then the mirror E2E (`run-download-e2e.ps1`, `run-countries-e2e.ps1`) after an issuer check, then gitleaks, push and CI + android-repro. Still open: delete `SKEPI_RELEASE_*_PASSWORD` from `~/.gradle/gradle.properties` (owner).
-**Last session:** 2026-11-18 — Control Room review: Part 1 (certs off git, key guard) and Part 2 (Expo SDK 58) committed locally; pnpm verify 50/50, release byte-identical after Part 1, clean-clone SDK 58 release, upgrade gate 3/3; S23 connectedAndroidTest 49/49 and Maestro airplane 8/8 on the SDK 58 debug build; mirror E2E pending (Norton), not pushed
+**Current:** v0.2.3-preview published 2026-11-10; `main` pushed with the Control Room review: test-mirror certificates generated on demand (untracked) + private-key guard, Expo SDK 58 (expo 58.0.24, RN 0.88.1), import-fixture fix for the mirror E2E
+**Next step:** owner checks CI and android-repro on the pushed `main`; then the soupsieve bump (own commit, full rag-eval/parity). Still open: delete `SKEPI_RELEASE_*_PASSWORD` from `~/.gradle/gradle.properties` (owner).
+**Last session:** 2026-11-19 — mirror E2E on the S23 (Web Shield off, issuer SKEPI CA on PC and S23): countries PASS, download PASS after the import-fixture fix (12 requests, all to the mirror, 0 bytes egress); import failure was the harness (fixture mtime), not the app or SDK 58; gitleaks clean; pushed
 
 
 ## Control Room review 2026-11-18: test-mirror certificates and Expo SDK 58 (not pushed, no release, no tag)
@@ -78,12 +78,27 @@ Commits on `main` after `dbf3d34`: `e9647b4`, `90a3bda` (Part 1), `bbbd162` (Par
   the emulator's own Google TLS failed the same way). `run-countries-e2e.ps1`: same issuer, not run. After the run
   Norton removed `e2e/run-download-e2e.ps1` from the working tree; the owner restored it (blob equal to HEAD) and
   excluded `e2e/`. Rechecked later: `openssl s_client` from the PC still showed Norton's issuer with Safe Web/HTTPS
-  scanning paused, so no download run yet; Web/Mail Shield off is next.
+  scanning paused, so no download run yet.
+- Mirror E2E on the S23 (2026-11-18/19, device lock, Web Shield off; issuer "SKEPI Test Mirror CA" from the PC and
+  from the S23 through `adb reverse`): `run-countries-e2e.ps1` PASS (8 requests, all to the mirror); first
+  `run-download-e2e.ps1`: onboarding-mirror passed, download.yaml failed at the picker ("eval-heldout.zim" not
+  visible; 12 requests, all to the mirror). Root cause in the harness, not the app: DocumentsUI lists Downloads
+  newest first, `adb push` kept the fixture's 2026-10-05 mtime, and the owner's S23 has newer downloads, so the file
+  sat below the fold (Maestro's wait does not scroll). Not an SDK 58 regression: the import-only flow
+  (`e2e/import.yaml`, no mirror) passed on the SDK 58 build (skepi-host) and on the older 0.0.1 build (skepi-recv);
+  expo-document-picker 57→58 has no Android changes; MediaStore indexed the pushed file at once. On the S23 it
+  failed with the pushed mtime and passed with the file touched. Fix: `e2e/download-fixture.ps1` pushes, touches and
+  fails unless the mtime is within 60 s of the device clock (rejected a stale push on the S23); used by
+  `run-download-e2e.ps1` and the new `run-import-e2e.ps1` (PASS on the S23). Flows and assertions unchanged. Rerun:
+  `run-download-e2e.ps1` PASS (onboarding-mirror + download, 12 requests all to the mirror, 15 mirror requests,
+  no query strings, generic User-Agent, 0 bytes over real interfaces). The unverified test pack left by the import
+  runs was removed in the app (Library, Remove). `e2e/out/` is gitignored (never committed) and CI only uploads
+  outputs made on GitHub-hosted runners, so the picker screenshots with the owner's file names stay local.
 - Mistake: an emulator start with `-wipe-data` wiped the `skepi-host` AVD (P2P host). Re-provisioned the same day:
   the `9bd46e2` debug build (current `ca.crt`) and `provision.ps1 -AppId org.skepi.app.dev` (all hashes OK); ready
   for `run-p2p.ps1` (the receiver AVD still has the older SDK 57 debug build).
 - Desktop: unchanged by Part 2 (same importer resolution, no Rust changes); build and smoke ran in Part 1 only.
-- CI and android-repro (a = b = fdroid-build) run after the push.
+- gitleaks on the 8 pushed commits: no leaks. CI and android-repro (a = b = fdroid-build) run after the push.
 
 **Follow-ups (owner decision 2026-11-18).**
 - picomatch GHSA-fc5q-39xc-vjpf: accepted until 2027-02-18 (build and test tooling only, no fixed release); re-check

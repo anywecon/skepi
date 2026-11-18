@@ -1,0 +1,47 @@
+# Import only (no mirror, no network): step 4 of download.yaml on its own. Run it with
+# e2e/run-import-e2e.ps1, which pushes tools/rag-eval/fixtures/eval-heldout.zim to /sdcard/Download with a
+# current mtime (the picker lists Downloads newest first). An unknown ZIM imports unverified,
+# opens only after explicit consent and keeps its permanent label.
+appId: ${APP_ID}
+name: SKEPI import of an unknown ZIM (no network)
+---
+- launchApp:
+    stopApp: true
+- runFlow: app-ready.yaml
+- tapOn:
+    id: tab-library
+# The Library opens at the top; the import button sits below the installed packs.
+- scrollUntilVisible:
+    element:
+      id: library-import
+    direction: DOWN
+    timeout: 30000
+- tapOn:
+    id: library-import
+- runFlow:
+    file: pick-download-file.yaml
+    env:
+      FILE_NAME: eval-heldout.zim
+- extendedWaitUntil:
+    visible: "Open unverified content\\?"
+    timeout: 60000
+- tapOn: "Open anyway"
+- scrollUntilVisible:
+    element:
+      text: "Unverified content — not in the signed catalog"
+    direction: UP
+    timeout: 30000
+- tapOn:
+    id: tab-search
+- tapOn:
+    id: search-input
+- eraseText: 40
+- inputText: Halvik
+- tapOn:
+    id: search-fulltext
+- extendedWaitUntil:
+    visible:
+      id: search-result-0
+    timeout: 15000
+- assertVisible:
+    id: unverified-label

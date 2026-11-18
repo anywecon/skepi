@@ -2,7 +2,8 @@
 .SYNOPSIS
   Download/catalog/import E2E against the local HTTPS test mirror, with a zero-egress check.
   1. Starts e2e/mirror/server.mjs (https://127.0.0.1:8443, admin on host-only :8444) and
-     `adb reverse tcp:8443 tcp:8443`; pushes an unknown ZIM to /sdcard/Download for the import step.
+     `adb reverse tcp:8443 tcp:8443`; pushes an unknown ZIM to /sdcard/Download for the import step
+     (with a current mtime, so the picker lists it first: e2e/download-fixture.ps1).
   2. Runs e2e/onboarding-mirror.yaml ("Get prepared" on a fresh install: the 2 GB preset downloads the
      test packs from the mirror, readiness indicator), then e2e/download.yaml on the debug build (test catalog; build with
      `gradlew assembleDebug -PskepiBundleDebug=true`). Wi-Fi must be connected (DownloadManager needs a network).
@@ -60,6 +61,7 @@ if (-not $uid) { throw "$AppId is not installed (build: gradlew assembleDebug -P
 . (Join-Path $PSScriptRoot 'mirror\mirror-certs.ps1')
 Initialize-MirrorCerts
 Assert-InstalledAppTrustsMirror $adbArgs $AppId
+. (Join-Path $PSScriptRoot 'download-fixture.ps1')
 Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $out 'mirror-log.jsonl')
 
 $server = Start-Process -FilePath node -ArgumentList (Join-Path $PSScriptRoot 'mirror\server.mjs') -PassThru -WindowStyle Hidden `
@@ -67,7 +69,7 @@ $server = Start-Process -FilePath node -ArgumentList (Join-Path $PSScriptRoot 'm
 try {
   Start-Sleep -Seconds 2
   Invoke-Adb reverse tcp:8443 tcp:8443 | Out-Null
-  Invoke-Adb push (Join-Path $root 'tools\rag-eval\fixtures\eval-heldout.zim') '/sdcard/Download/eval-heldout.zim' | Out-Host
+  Push-DownloadFixture $adbArgs
   Invoke-Adb logcat -c
   $before = Get-UidBytes $uid
 
@@ -92,7 +94,7 @@ try {
   $log | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 (Join-Path $out 'mirror-log.json')
 } finally {
   Invoke-Adb reverse --remove tcp:8443 | Out-Null
-  Invoke-Adb shell rm -f /sdcard/Download/eval-heldout.zim | Out-Null
+  Remove-DownloadFixture $adbArgs
   Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue
 }
 

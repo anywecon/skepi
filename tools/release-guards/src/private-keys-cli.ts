@@ -1,11 +1,19 @@
 /**
- * Usage: tsx src/private-keys-cli.ts [repo root, default: the current directory]
+ * Usage: tsx src/private-keys-cli.ts [repo root, default: the top of the git work tree around the
+ * current directory, so `pnpm --filter @skepi/release-guards private-keys` scans the whole repository]
  * Fails (exit 1) when a tracked file is a private key or keystore (src/private-keys.ts).
  */
+import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { PRIVATE_KEY_ALLOWLIST, findPrivateKeys, trackedFiles } from './private-keys';
 
-const root = resolve(process.argv[2] ?? '.');
+function gitTopLevel(): string {
+  const git = spawnSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' });
+  if (git.status !== 0) throw new Error(`not inside a git work tree: ${git.stderr.trim()}`);
+  return git.stdout.trim();
+}
+
+const root = resolve(process.argv[2] ?? gitTopLevel());
 let count = 0;
 const findings = findPrivateKeys(
   (function* counted() {

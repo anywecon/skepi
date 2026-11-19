@@ -1,0 +1,33 @@
+diff --git a/ios/RNLlama.mm b/ios/RNLlama.mm
+index 603904200362e444f57eaa9fc90c077514b69503..5f4a85ce6065c03faec23a9d6da770144685cf8a 100644
+--- a/ios/RNLlama.mm
++++ b/ios/RNLlama.mm
+@@ -73,6 +73,13 @@ MetalAvailability getMetalAvailability(bool skipGpuDevices) {
+ }
+ } // namespace rnllama_jsi
+ 
++// RCTCxxBridge is gone from React Native 0.88: reach the runtime through a protocol (backport of
++// llama.rn 0.13.0-rc RNLlama.mm, SKEPI patch until a stable 0.13 passes the release-age gate).
++@protocol RNLlamaBridgeRuntimeAccess <NSObject>
++@property (nonatomic, readonly) void *runtime;
++@property (nonatomic, readonly) std::shared_ptr<facebook::react::CallInvoker> jsCallInvoker;
++@end
++
+ @implementation RNLlama {
+     __unsafe_unretained RCTBridge *_bridge;
+ }
+@@ -96,11 +103,11 @@ RCT_EXPORT_METHOD(install:(RCTPromiseResolveBlock)resolve
+         return;
+     }
+ 
+-    RCTCxxBridge *cxxBridge = (RCTCxxBridge *)bridge.batchedBridge;
++    id<RNLlamaBridgeRuntimeAccess> cxxBridge = (id<RNLlamaBridgeRuntimeAccess>)bridge.batchedBridge;
+     if (!cxxBridge) {
+-        cxxBridge = (RCTCxxBridge *)bridge;
++        cxxBridge = (id<RNLlamaBridgeRuntimeAccess>)bridge;
+     }
+-    auto callInvoker = cxxBridge.jsCallInvoker ?: bridge.jsCallInvoker;
++    auto callInvoker = cxxBridge.jsCallInvoker;
+     if (!cxxBridge.runtime) {
+         resolve(@false);
+         return;

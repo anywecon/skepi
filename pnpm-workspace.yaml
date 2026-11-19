@@ -29,3 +29,8 @@ overrides:
   'eslint-plugin-react-hooks>zod': ^4.6.6
   'node-llama-cpp>simple-git': ^4.0.1
   'simple-git>@simple-git/argv-parser': ^2.0.1
+
+# llama.rn 0.12.9 on React Native 0.88 (iOS): RCTCxxBridge was removed, so the install method reaches the JS runtime
+# through a protocol, as llama.rn 0.13.0-rc does. Drop the patch with the move to a stable 0.13.
+patchedDependencies:
+  llama.rn@0.12.9: patches/llama.rn@0.12.9.patch

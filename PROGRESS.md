@@ -1,5 +1,5 @@
 **Current:** v0.2.3-preview published 2026-11-10; `main` pushed with the Control Room review: test-mirror certificates generated on demand (untracked) + private-key guard, Expo SDK 58 (expo 58.0.24, RN 0.88.1, llama.rn iOS patch), import-fixture fix for the mirror E2E; CI and android-repro green on `a911874`
-**Next step:** soupsieve bump (own commit, full rag-eval/parity); drop the llama.rn patch once 0.13.0 stable is 7 days old. Still open: delete `SKEPI_RELEASE_*_PASSWORD` from `~/.gradle/gradle.properties` (owner).
+**Next step:** soupsieve bump (own commit, full rag-eval/parity); drop the llama.rn patch once 0.13.0 stable is 7 days old.
 **Last session:** 2026-11-19 — mirror E2E green on the S23 (countries, download after the import-fixture fix); SDK 58 CI breaks fixed (stale mobile notices, llama.rn `RCTCxxBridge` on RN 0.88); CI green (ios-build after a rerun of the known flaky Swift sealing control), android-repro a = b = fdroid-build `00f0fe45…1ecf`; pushed
 
 
@@ -265,6 +265,7 @@ elease` deleted.
 - Done: `tools/Signing.psm1` (from `_templates/signing`); `withReleaseSigning.js` reads `SKEPI_RELEASE_STORE_PASSWORD` / `SKEPI_RELEASE_KEY_PASSWORD` only from the environment (path and alias stay Gradle properties; passwords left in a `gradle.properties` are ignored with a warning naming them); `sign-release-apk.ps1` prompts via `Use-SigningSecrets` and passes `--ks-pass env:` / `--key-pass env:` to apksigner; `keystore.properties` gitignored; README, `docs/release-signing.md`, `docs/release-process.md`, `docs/architecture.md` describe the new flow. Local device/E2E builds stay debug or `-PskepiDebugSign=true`.
 - Verified: `pnpm verify` 49/49; PowerShell parse of the script and module; `expo prebuild --clean` + `assembleDebug` without any signing secret. Not run (owner-only by design): `sign-release-apk.ps1`, any key-signed release build.
 - Open: the owner's first `sign-release-apk.ps1` run is the real test of the prompt path.
+- Closed: the stored signing-password cleanup item: owner decision 2026-11-02, no secret cleanup needed; keys verified and backed up offline.
 
 ## IFRC notice sent 2026-10-27
 

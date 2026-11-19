@@ -1,6 +1,6 @@
-**Current:** v0.2.3-preview published 2026-11-10; `main` pushed with the Control Room review: test-mirror certificates generated on demand (untracked) + private-key guard, Expo SDK 58 (expo 58.0.24, RN 0.88.1), import-fixture fix for the mirror E2E
-**Next step:** owner checks CI and android-repro on the pushed `main`; then the soupsieve bump (own commit, full rag-eval/parity). Still open: delete `SKEPI_RELEASE_*_PASSWORD` from `~/.gradle/gradle.properties` (owner).
-**Last session:** 2026-11-19 — mirror E2E on the S23 (Web Shield off, issuer SKEPI CA on PC and S23): countries PASS, download PASS after the import-fixture fix (12 requests, all to the mirror, 0 bytes egress); import failure was the harness (fixture mtime), not the app or SDK 58; gitleaks clean; pushed
+**Current:** v0.2.3-preview published 2026-11-10; `main` pushed with the Control Room review: test-mirror certificates generated on demand (untracked) + private-key guard, Expo SDK 58 (expo 58.0.24, RN 0.88.1, llama.rn iOS patch), import-fixture fix for the mirror E2E; CI and android-repro green on `a911874`
+**Next step:** soupsieve bump (own commit, full rag-eval/parity); drop the llama.rn patch once 0.13.0 stable is 7 days old. Still open: delete `SKEPI_RELEASE_*_PASSWORD` from `~/.gradle/gradle.properties` (owner).
+**Last session:** 2026-11-19 — mirror E2E green on the S23 (countries, download after the import-fixture fix); SDK 58 CI breaks fixed (stale mobile notices, llama.rn `RCTCxxBridge` on RN 0.88); CI green (ios-build after a rerun of the known flaky Swift sealing control), android-repro a = b = fdroid-build `00f0fe45…1ecf`; pushed
 
 
 ## Control Room review 2026-11-18: test-mirror certificates and Expo SDK 58 (not pushed, no release, no tag)
@@ -98,7 +98,22 @@ Commits on `main` after `dbf3d34`: `e9647b4`, `90a3bda` (Part 1), `bbbd162` (Par
   the `9bd46e2` debug build (current `ca.crt`) and `provision.ps1 -AppId org.skepi.app.dev` (all hashes OK); ready
   for `run-p2p.ps1` (the receiver AVD still has the older SDK 57 debug build).
 - Desktop: unchanged by Part 2 (same importer resolution, no Rust changes); build and smoke ran in Part 1 only.
-- gitleaks on the 8 pushed commits: no leaks. CI and android-repro (a = b = fdroid-build) run after the push.
+- gitleaks on the 8 pushed commits: no leaks. CI on `76a351d` failed twice, both from the SDK 58 commit: desktop-windows
+  "Third-party notices are current" (`third-party-notices.json` kept `@babel/helper-string-parser` 7.29.13 from an
+  intermediate lockfile; the lockfile resolves 7.29.7; the local "notices check" earlier ran before that lockfile)
+  and ios-build (`llama.rn` 0.12.9 casts to `RCTCxxBridge`, gone in RN 0.88). Fixed in `4b8d2bc` (regenerated notices)
+  and `a911874` (pnpm patch, backport of llama.rn 0.13.0-rc's install method, iOS file only). CI on `a911874`: all
+  green; ios-build passed on a rerun (first attempt: Release build and link passed, Swift `SealingTests` control
+  "control web view never connected", the known hosted-runner WebKit flake); ios-e2e skipped by its path filter.
+  android-repro: a = b = fdroid-build, unsigned `00f0fe45e6fde80c984c13eb18a80db6cae73d21b7a90a9e77dbf8eb61201ecf`
+  (first attempt of (a) and fdroid-build failed resolving Gradle plugins from plugins.gradle.org; passed on rerun).
+  Against CI on `76a351d` (`6b9a8e83…3e0a`) only `assets/index.android.bundle` differs (the notices string).
+  Local clean clone at `a911874` (Windows JDK 21): `2a2b8760fc14971278204a152973d60e2b0afbe11df970114d46034acf59625e`;
+  against the local `bbbd162` build (`b4b1695f…ca70`) only the bundle differs (Hermes: "7.29.7" for "7.29.13"); against
+  CI only 19 CMake-built `.so` files differ (Windows host vs Linux), bundle and dex identical. Local `node_modules`
+  repaired with `pnpm install --frozen-lockfile` from PowerShell with Windows tar first in PATH (Git Bash's GNU tar
+  cannot extract llama.rn's postinstall archives on `F:` paths); jniLibs and xcframework markers match the manifest
+  (`cda945a7…65ac`, `ae9a37ae…c4ae`); not used by release builds (`rnllamaBuildFromSource=true`).
 
 **Follow-ups (owner decision 2026-11-18).**
 - picomatch GHSA-fc5q-39xc-vjpf: accepted until 2027-02-18 (build and test tooling only, no fixed release); re-check
@@ -106,6 +121,9 @@ Commits on `main` after `dbf3d34`: `e9647b4`, `90a3bda` (Part 1), `bbbd162` (Par
 - soupsieve (`tools/rag-eval` only): accepted until 2027-02-18. Bump the pin to the fixed release (3.0.2 or later) in
   its own commit, with a full rag-eval/parity run; the parity thresholds and the held-out sets stay unchanged. Then
   drop the three soupsieve ignores from `osv-scanner.toml` and close the threat-model row.
+- llama.rn pnpm patch (`patches/llama.rn@0.12.9.patch`, iOS only: RN 0.88 removed `RCTCxxBridge`; backport of
+  0.13.0-rc's install method): drop the patch and the `patchedDependencies` entry once llama.rn 0.13.0 stable is
+  at least 7 days old (`minimumReleaseAge`), moving to it in its own commit with the iOS build and the Android gates.
 
 ## Supply-chain check and release-age guard 2026-11-13 (no release, no tag)
 - Checked the 35 package versions that changed in e0adc98..0afbe9f (expo 57.0.33, @expo/cli 57.0.34, 33 others): `npm audit signatures` in a scratch project with the same versions: 548/548 registry signatures verified, 159 attestations. Provenance: Expo never published with provenance (previous versions neither); glob 14.0.6, minimatch 11.0.8, @expo/env 2.6.0 (GitHub Actions trusted publisher) have it; none lost it. Install scripts: no install/postinstall anywhere, unchanged (`prepare` only, not run for registry tarballs). Publisher of every Expo SDK 57 release is the same account; gitHeads are expo/expo "Publish packages" commits minutes before publishing. Tarball diffs vs the previous versions: new Android AARs are the per-version renames in `local-maven-repo` (sha256 sidecars match, same entries, no native libs, new @expo/ui classes all have sources); iOS xcframework tarballs and the create-expo template changed (not used by our Android/desktop builds); added-line scan found no new network calls, exfiltration paths or obfuscation (hits: the dev-server DevTools plugin executor in @expo/cli spawns `process.execPath`, xcode's existing `fork` refactored, brace-expansion `fromCharCode` in glob). expo/expo issues and advisories: no report about these versions. Verdict: nothing suspicious, kept.

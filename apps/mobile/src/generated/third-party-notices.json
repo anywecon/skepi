@@ -1855,7 +1855,7 @@
   {
    "ecosystem": "npm",
    "name": "@babel/helper-string-parser",
-   "version": "7.29.13",
+   "version": "7.29.7",
    "license": "MIT",
    "url": "https://babel.dev/docs/en/next/babel-helper-string-parser",
    "texts": [
